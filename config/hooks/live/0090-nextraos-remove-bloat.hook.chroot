@@ -1,0 +1,22 @@
+#!/bin/sh
+set -e
+
+echo "==> NextraOS: Removing unwanted default packages"
+
+apt-get purge -y --allow-remove-essential \
+    libreoffice-core libreoffice-writer libreoffice-calc libreoffice-impress \
+    libreoffice-draw libreoffice-base libreoffice-math \
+    libreoffice-help-en-us libreoffice-l10n-en-us \
+    libreoffice-plasma libreoffice-kf6 \
+    konqueror konqueror-doc \
+    dragonplayer \
+    juk \
+    fortune-mod fortunes fortunes-min \
+    gwenview gwenview-doc \
+    kontrast \
+    okular okular-backend-odp okular-backend-odt \
+    goldendict-ng || true
+
+apt-get autoremove -y --purge || true
+
+echo "==> NextraOS: Bloat removal complete"

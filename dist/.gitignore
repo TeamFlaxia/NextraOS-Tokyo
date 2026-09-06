@@ -1,0 +1,4 @@
+# Build output - do not commit
+*.iso
+*.iso.log
+build.log

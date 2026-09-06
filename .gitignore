@@ -1,0 +1,47 @@
+# Build artifacts
+build.log
+live-image-*.iso
+live-image-*.img
+live-image-*.contents
+live-image-*.files
+live-image-*.packages
+.cache/
+.cache/**/
+cache/
+chroot/
+chroot.files
+chroot.packages.*
+binary/
+binary.modified_timestamps
+.build/
+wget-log*
+
+# dist output (ISO files)
+dist/*.iso
+dist/*.iso.log
+
+# live-build auto-generated config
+config/binary
+config/bootstrap
+config/chroot
+config/common
+config/source
+config/package-lists/live.list.chroot
+config/hooks/live/0010-*.hook.chroot
+config/hooks/live/0050-*.hook.chroot
+config/hooks/live/1000-*.hook.chroot
+config/hooks/live/5*.hook.chroot
+config/hooks/live/8*.hook.chroot
+config/hooks/live/9000-*.hook.chroot
+config/hooks/live/9010-*.hook.chroot
+config/hooks/live/9020-*.hook.chroot
+config/hooks/normal/
+
+# Editor/OS
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

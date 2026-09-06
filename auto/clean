@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+
+if [ -n "$1" ]; then
+    lb clean noauto --stage "$1"
+    echo "Cleaned stage: $1"
+else
+    lb clean noauto
+    echo "Cleaned all stages"
+fi
+
+rm -f config/binary config/bootstrap config/chroot config/common config/source
+rm -f build.log

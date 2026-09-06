@@ -1,0 +1,36 @@
+#!/bin/sh
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+DIST_DIR="$PROJECT_DIR/dist"
+ISO_NAME="nextraos-live-amd64.iso"
+
+cd "$PROJECT_DIR"
+
+mkdir -p "$DIST_DIR"
+
+echo "==> NextraOS ISO Build"
+echo "    Project: $PROJECT_DIR"
+echo "    Output:  $DIST_DIR/$ISO_NAME"
+echo ""
+
+echo "==> Running lb config..."
+./auto/config
+
+echo "==> Running lb build..."
+sudo lb build 2>&1 | tee build.log
+
+echo "==> Copying ISO to dist/"
+ISO_FILE=$(ls -1 live-image-*.iso 2>/dev/null | head -1)
+if [ -n "$ISO_FILE" ]; then
+    cp "$ISO_FILE" "$DIST_DIR/$ISO_NAME"
+    echo "    Built: $DIST_DIR/$ISO_NAME"
+    ls -lh "$DIST_DIR/$ISO_NAME"
+else
+    echo "ERROR: No ISO file produced. Check build.log for errors."
+    exit 1
+fi
+
+echo ""
+echo "==> Build complete."

@@ -1,0 +1,15 @@
+{
+    "KPlugin": {
+        "Id": "org.nextraos.desktop",
+        "Name": "NextraOS",
+        "Description": "NextraOS Default Desktop",
+        "Author": "NextraOS Project",
+        "Category": "Plasma Look And Feel",
+        "Version": "1.0",
+        "Website": "https://github.com/nextraos/nextraos",
+        "License": "GPL-3.0+",
+        "EnabledByDefault": true
+    },
+    "X-KDE-Order": 0,
+    "X-Plasma-APIVersion": "1.0"
+}
