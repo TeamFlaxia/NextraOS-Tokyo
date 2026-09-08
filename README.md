@@ -30,14 +30,10 @@ a virtual machine.
 - NetworkManager
 - APT
 - Flatpak
-- Docker + docker-compose
 - VSCodium
-- Wine / Bottles
-- Proton
+- Wine / Bottles / Proton
 - Waydroid
 - QEMU / KVM
-- dockur/windows
-- dockur/macos
 
 The actual implementation may change as research progresses.
 
@@ -64,7 +60,7 @@ The preferred order is:
 1. Wine
 2. Bottles
 3. Proton where appropriate
-4. Windows VM fallback
+4. Windows with KVM
 
 ### macOS
 
