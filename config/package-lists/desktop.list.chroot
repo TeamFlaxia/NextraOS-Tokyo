@@ -12,6 +12,12 @@ plasma-nm
 
 spice-vdagent
 qemu-guest-agent
+qemu-system-x86
+qemu-utils
+libvirt-daemon-system
+libvirt-clients
+virt-manager
+bridge-utils
 
 docker.io
 docker-compose

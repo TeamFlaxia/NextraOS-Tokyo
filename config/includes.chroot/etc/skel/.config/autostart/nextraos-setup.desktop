@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=NextraOS Initial Setup
+Comment=Complete your NextraOS system setup
+Exec=/usr/bin/nextraos-setup
+Icon=nextraos-setup
+Terminal=false
+NoDisplay=true
+X-KDE-AutostartPhase=2
+X-GNOME-Autostart-enabled=true

@@ -1,0 +1,83 @@
+#!/bin/sh
+set -e
+
+echo "==> NextraOS: Setting up OpenCore for macOS VMs"
+
+# Create OpenCore directory
+OC_DIR="/usr/share/nextraos/opencode"
+mkdir -p "$OC_DIR"
+
+# Download OpenCore release (latest stable)
+OC_VERSION="0.9.7"
+OC_URL="https://github.com/acidanthera/OpenCorePkg/releases/download/${OC_VERSION}/OpenCore-${OC_VERSION}-RELEASE.zip"
+
+cd /tmp
+curl -fsSL -o opencode.zip "$OC_URL" || {
+    echo "==> NextraOS: Failed to download OpenCore, skipping"
+    exit 0
+}
+
+# Extract OpenCore
+unzip -q opencode.zip -d opencode_tmp || {
+    echo "==> NextraOS: Failed to extract OpenCore, skipping"
+    exit 0
+}
+
+# Copy necessary files
+cp opencode_tmp/X64/EFI/BOOT/BOOTx64.efi "$OC_DIR/" 2>/dev/null || true
+cp opencode_tmp/X64/EFI/OC/OpenCore.efi "$OC_DIR/" 2>/dev/null || true
+cp -r opencode_tmp/X64/EFI/OC/Tools "$OC_DIR/" 2>/dev/null || true
+cp -r opencode_tmp/X64/EFI/OC/Drivers "$OC_DIR/" 2>/dev/null || true
+cp -r opencode_tmp/X64/EFI/OC/ACPI "$OC_DIR/" 2>/dev/null || true
+cp -r opencode_tmp/X64/EFI/OC/Kexts "$OC_DIR/" 2>/dev/null || true
+
+# Download OpenCanopy (GUI bootloader)
+OC_GUI_URL="https://github.com/acidanthera/OpenCorePkg/releases/download/${OC_VERSION}/OpenCanopy-${OC_VERSION}-RELEASE.zip"
+curl -fsSL -o opencanopy.zip "$OC_GUI_URL" 2>/dev/null || true
+unzip -q opencanopy.zip -d opencanopy_tmp 2>/dev/null || true
+cp opencanopy_tmp/OpenCanopy.efi "$OC_DIR/Drivers/" 2>/dev/null || true
+
+# Cleanup
+rm -rf /tmp/opencode* /tmp/opencanopy*
+
+# Create default config.plist template
+cat > "$OC_DIR/config.plist" << 'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- OpenCore config template for NextraOS macOS VMs -->
+    <!-- This is a minimal template - customize per VM -->
+</dict>
+</plist>
+PLIST
+
+# Create setup script
+cat > /usr/local/bin/nextraos-opencode-setup << 'SCRIPT'
+#!/bin/sh
+# NextraOS OpenCore macOS VM Setup Helper
+# Usage: nextraos-opencode-setup <vm-disk>
+
+set -e
+
+OC_DIR="/usr/share/nextraos/opencode"
+VM_DISK="${1:-}"
+
+if [ -z "$VM_DISK" ]; then
+    echo "Usage: $0 <vm-disk>"
+    echo "Example: $0 /var/lib/libvirt/images/macos.qcow2"
+    exit 1
+fi
+
+echo "==> NextraOS: Setting up OpenCore for $VM_DISK"
+
+# This script helps configure OpenCore for a macOS VM
+# Full automation requires additional setup per VM configuration
+
+echo "==> NextraOS: OpenCore files are in $OC_DIR"
+echo "==> NextraOS: Please customize $OC_DIR/config.plist for your VM"
+echo "==> NextraOS: See docs/RESEARCH.md for QEMU/KVM macOS VM setup"
+SCRIPT
+chmod +x /usr/local/bin/nextraos-opencode-setup
+
+echo "==> NextraOS: OpenCore setup complete"

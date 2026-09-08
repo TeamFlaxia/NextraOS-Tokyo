@@ -1,0 +1,24 @@
+#!/bin/sh
+set -e
+
+cat > /etc/os-release << 'EOF'
+PRETTY_NAME="NextraOS 1.0 Tokyo"
+NAME="NextraOS"
+VERSION_ID="1.0"
+VERSION="1.0 Tokyo"
+VERSION_CODENAME=tokyo
+ID=nextraos
+ID_LIKE=debian
+HOME_URL="https://nextraos.org"
+SUPPORT_URL="https://nextraos.org/support"
+BUG_REPORT_URL="https://github.com/nextraos/nextraos/issues"
+EOF
+
+cat > /etc/lsb-release << 'EOF'
+DISTRIB_ID=NextraOS
+DISTRIB_RELEASE=1.0
+DISTRIB_CODENAME=tokyo
+DISTRIB_DESCRIPTION="NextraOS 1.0 Tokyo"
+EOF
+
+echo "NextraOS os-release configured"

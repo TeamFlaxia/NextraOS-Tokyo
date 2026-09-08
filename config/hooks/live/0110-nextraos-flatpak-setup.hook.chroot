@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+echo "==> NextraOS: Setting up Flatpak and installing Bottles"
+
+# Add Flathub remote
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+# Install Bottles via Flatpak
+flatpak install -y flathub com.usebottles.bottles
+
+# Clean up Flatpak cache
+flatpak uninstall --unused -y 2>/dev/null || true
+flatpak repair 2>/dev/null || true
+
+echo "==> NextraOS: Flatpak setup complete"
