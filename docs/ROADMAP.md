@@ -12,23 +12,21 @@ Research:
 - Wayland
 - PipeWire
 - NetworkManager
-- Wine
-- Bottles
-- Proton
 - Waydroid
 - QEMU
 - KVM
-- Docker
-- Podman
-- dockur/windows
-- dockur/macos
-- WinApps
-- WinBoat
-- application integration
+- Wine
+- Bottles
+- Proton
+- SPICE
+- OpenCore
+- systemd
+- desktop integration
 
 Deliverable:
 
     docs/RESEARCH.md
+    docs/DESKTOP-INTEGRATION.md
 
 ---
 
@@ -51,7 +49,6 @@ Components:
 - Dolphin 25.04.3 (file manager)
 - KDE System Settings (via kde-standard)
 - Firefox ESR 140.15.0
-- Docker (docker.io 26.1.x + docker-compose)
 - Flatpak + xdg-desktop-portal-kde
 - VSCodium (codium, via official repo)
 
@@ -78,6 +75,7 @@ display (VNC viewer, Spice, or local display).
 
 Implement:
 
+- Calamares-based GUI installer
 - welcome screen
 - user creation
 - language
@@ -85,7 +83,7 @@ Implement:
 - timezone
 - hardware detection
 - network detection
-- ecosystem selection
+- ecosystem selection (packagechooserq)
 - starter applications
 - disk selection
 - installation
@@ -115,91 +113,105 @@ Starter kit:
 
 ---
 
-# Phase 4 — Windows Compatibility
-
-Implement:
-
-- Wine
-- Bottles
-- Proton
-- executable handling
-- desktop integration
-
-Proof of concept:
-
-    install.exe
-        |
-        v
-    compatibility resolver
-        |
-        v
-    Wine
-
----
-
-# Phase 5 — Android
+# Phase 4 — Android
 
 Integrate:
 
 - Waydroid
+- Kernel module setup (binderfs)
 - APK installation
 - application discovery
 - desktop entries
+- clipboard sharing
+- file sharing
+
+Success criteria:
+
+Android apps run as native Wayland windows on NextraOS.
+
+Note: Waydroid requires installed system (not live mode).
 
 ---
 
-# Phase 6 — Windows VM
+# Phase 5 — Windows Compatibility
 
-Investigate:
+Implement:
 
-- QEMU
-- KVM
-- Docker
-- Podman
-- dockur/windows
-- WinApps
-- WinBoat
+- Wine (Windows compatibility layer)
+- Bottles (Wine GUI management)
+- Proton (Steam gaming)
+- Desktop integration (.desktop files)
+- MIME type registration (.exe, .msi)
+- Application menu integration
+- Starter kit:
+  - Firefox
+  - GIMP
+  - VLC
+  - VSCodium
+  - LibreOffice
 
-Goal:
+Success criteria:
 
-Expose selected Windows applications as normal desktop applications.
+Windows applications run natively on NextraOS with GPU
+acceleration.
 
----
+Architecture:
 
-# Phase 7 — Unified Compatibility Resolver
+    Linux Desktop (KDE Plasma Wayland)
+        │
+        ├── Wine
+        │   └── Windows applications (native GPU)
+        │
+        ├── Bottles (GUI management)
+        │
+        └── Proton (Steam gaming)
 
-Build:
+Limitations:
 
-    Nextra Compatibility Resolver
-
-It should select:
-
-- native
-- Flatpak
-- Wine
-- Proton
-- Waydroid
-- Windows VM
-- macOS VM
-
-based on application metadata and host capabilities.
-
----
-
-# Phase 8 — macOS Experimental
-
-Research and prototype:
-
-- QEMU/KVM
-- dockur/macos
-- hardware requirements
-- legal restrictions
-
-No proprietary images should be redistributed without permission.
+- Some Windows applications do not work under Wine
+- DirectX 12 support is limited
+- Anti-cheat software may not work
+- Fallback: macOS VM for incompatible applications
 
 ---
 
-# Phase 9 — Production Hardening
+# Phase 6 — macOS Experimental
+
+Implement:
+
+- Direct QEMU/KVM (not Docker)
+- OpenCore bootloader
+- SPICE protocol integration
+- spice-vdagent (clipboard, resolution)
+- systemd user services
+- Automated Recovery DMG download
+- File sharing (SPICE webdav)
+
+Success criteria:
+
+macOS runs in a VM accessible via SPICE.
+
+Architecture:
+
+    Linux Desktop (KDE Plasma Wayland)
+        │
+        └── QEMU/KVM
+            ├── OpenCore bootloader
+            ├── macOS Recovery DMG
+            ├── SPICE display
+            └── systemd service
+
+Note:
+
+- AVX2 required (Intel Haswell 4th gen+, 2013+)
+- Full desktop only (no seamless windows)
+- Experimental status
+- macOS EULA restricts virtualization to Apple hardware
+- Display via SPICE (not VNC)
+
+---
+
+# Phase 7 — Production Hardening
 
 Improve:
 
@@ -211,7 +223,6 @@ Improve:
 - diagnostics
 - resource management
 - installer reliability
-- compatibility database
 - documentation
 
 ---
@@ -221,3 +232,10 @@ Improve:
 A user should be able to search for an application and launch it
 without needing to understand which operating system the application
 was originally designed for.
+
+Supported ecosystems:
+
+- Native Linux (APT, Flatpak)
+- Windows (Wine, Bottles, Proton)
+- Android (Waydroid)
+- macOS (experimental, QEMU/KVM)
