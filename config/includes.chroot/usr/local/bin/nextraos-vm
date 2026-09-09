@@ -1,24 +1,54 @@
 #!/bin/sh
 set -e
 
+# --- Configuration ---
+CONF_FILE="${HOME}/.config/nextraos/vm.conf"
+load_config() {
+    VM_AUTO_SUSPEND="${VM_AUTO_SUSPEND:-true}"
+    VM_SUSPEND_GRACE_PERIOD="${VM_SUSPEND_GRACE_PERIOD:-30}"
+    VM_SUSPEND_ON_SYSTEM_SUSPEND="${VM_SUSPEND_ON_SYSTEM_SUSPEND:-true}"
+    VM_READY_TIMEOUT="${VM_READY_TIMEOUT:-120}"
+    VM_HUGEPAGES="${VM_HUGEPAGES:-false}"
+    if [ -f "$CONF_FILE" ]; then
+        # shellcheck source=/dev/null
+        . "$CONF_FILE"
+    fi
+}
+
 usage() {
     cat << 'EOF'
-Usage: nextraos-vm <action> [vm-name]
+Usage: nextraos-vm <action> [options]
 
 Actions:
-  start <windows|macos>    Start VM
-  stop <windows|macos>     Stop VM
-  status [windows|macos]   Show VM status
-  list                     List all VMs
-  create <windows|macos>   Create VM disk
+  start <windows|macos>         Start VM
+  stop <windows|macos>          Stop VM
+  status [windows|macos]        Show VM status
+  list                          List all VMs
+  create <windows|macos>        Create VM disk
   download-iso <windows|macos>  Download OS installer
-  execute <windows|macos> <app>  Execute application in VM
+  execute [options] <windows|macos> <app>  Execute app in VM
+  suspend <windows|macos>       Suspend VM (save state, free RAM)
+  resume <windows|macos>        Resume VM from saved state
+  snapshot <windows|macos> [name]  Create snapshot
+  restore-snapshot <windows|macos> [name]  Restore snapshot
+  list-snapshots <windows|macos>   List snapshots
+  delete-snapshot <windows|macos> <name>  Delete snapshot
+  enable <windows|macos>        Enable autostart (systemd user service)
+  disable <windows|macos>       Disable autostart
+  setmem <windows|macos> <MB>   Adjust VM memory at runtime (balloon)
+
+Options (for execute):
+  --headless            Disable SPICE display (execute-only mode)
+  --no-auto-suspend     Disable auto-suspend after app exits
 
 Examples:
   nextraos-vm create windows
-  nextraos-vm download-iso macos
   nextraos-vm start windows
   nextraos-vm execute windows "C:\Program Files\App\app.exe"
+  nextraos-vm execute --headless windows "C:\app.exe"
+  nextraos-vm suspend windows
+  nextraos-vm resume windows
+  nextraos-vm snapshot macos "before-update"
 EOF
     exit 1
 }
@@ -34,6 +64,190 @@ get_vm_resources() {
     else
         echo "2048 2"
     fi
+}
+
+# --- Agent/SSH ready detection ---
+wait_for_agent_ready() {
+    VM_NAME="$1"
+    TIMEOUT="${VM_READY_TIMEOUT:-120}"
+    ELAPSED=0
+    echo -n "==> Waiting for guest agent"
+    while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
+        if virsh qemu-agent-command "$VM_NAME" \
+            '{"execute":"guest-sync","arguments":{"id":1}}' \
+            >/dev/null 2>&1; then
+            echo " ready (${ELAPSED}s)"
+            return 0
+        fi
+        echo -n "."
+        sleep 1
+        ELAPSED=$((ELAPSED + 1))
+    done
+    echo " timeout (${TIMEOUT}s)"
+    return 1
+}
+
+wait_for_ssh_ready() {
+    TIMEOUT="${VM_READY_TIMEOUT:-120}"
+    ELAPSED=0
+    echo -n "==> Waiting for SSH"
+    while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
+        if ssh -p 2222 -o ConnectTimeout=1 -o BatchMode=yes \
+            user@localhost true 2>/dev/null; then
+            echo " ready (${ELAPSED}s)"
+            return 0
+        fi
+        echo -n "."
+        sleep 1
+        ELAPSED=$((ELAPSED + 1))
+    done
+    echo " timeout (${TIMEOUT}s)"
+    return 1
+}
+
+# --- Suspend helpers ---
+VM_BASE_DIR="$HOME/.local/share/nextraos/vms"
+
+cmd_vm_suspend() {
+    local VM_NAME="$1"
+    local SAVE_DIR="$VM_BASE_DIR/$VM_NAME/save"
+    mkdir -p "$SAVE_DIR"
+
+    if ! virsh dominfo "$VM_NAME" >/dev/null 2>&1; then
+        echo "==> $VM_NAME is not running"
+        return 1
+    fi
+
+    local SAVE_FILE="$SAVE_DIR/suspend-$(date +%Y%m%d-%H%M%S).sav"
+    echo "==> Suspending $VM_NAME..."
+    virsh save "$VM_NAME" "$SAVE_FILE" >/dev/null 2>&1
+    echo "==> $VM_NAME suspended. Memory freed. Save: $SAVE_FILE"
+}
+
+cmd_vm_resume() {
+    local VM_NAME="$1"
+    local SAVE_DIR="$VM_BASE_DIR/$VM_NAME/save"
+    local SAVE_FILE
+
+    SAVE_FILE=$(ls -t "$SAVE_DIR"/suspend-*.sav 2>/dev/null | head -1)
+    if [ -z "$SAVE_FILE" ]; then
+        echo "==> No save file found for $VM_NAME"
+        return 1
+    fi
+
+    echo "==> Resuming $VM_NAME from $SAVE_FILE"
+    virsh restore "$SAVE_FILE" >/dev/null 2>&1
+    echo "==> $VM_NAME resumed"
+}
+
+# --- Snapshot helpers ---
+cmd_vm_snapshot() {
+    local VM_NAME="$1"
+    local SNAP_NAME="${2:-snap-$(date +%Y%m%d-%H%M%S)}"
+
+    if ! virsh dominfo "$VM_NAME" >/dev/null 2>&1; then
+        echo "==> $VM_NAME is not running"
+        return 1
+    fi
+
+    echo "==> Creating snapshot '$SNAP_NAME' for $VM_NAME"
+    virsh snapshot-create-as "$VM_NAME" "$SNAP_NAME" "" \
+        --atomic >/dev/null 2>&1
+    echo "==> Snapshot '$SNAP_NAME' created"
+}
+
+cmd_vm_restore_snapshot() {
+    local VM_NAME="$1"
+    local SNAP_NAME="$2"
+
+    if [ -z "$SNAP_NAME" ]; then
+        SNAP_NAME=$(virsh snapshot-list "$VM_NAME" --name 2>/dev/null | tail -1)
+        if [ -z "$SNAP_NAME" ]; then
+            echo "==> No snapshots found for $VM_NAME"
+            return 1
+        fi
+        echo "==> Using latest snapshot: $SNAP_NAME"
+    fi
+
+    echo "==> Restoring snapshot '$SNAP_NAME' for $VM_NAME"
+    virsh snapshot-revert "$VM_NAME" "$SNAP_NAME" >/dev/null 2>&1
+    echo "==> Snapshot '$SNAP_NAME' restored"
+}
+
+cmd_vm_list_snapshots() {
+    local VM_NAME="$1"
+    echo "==> Snapshots for $VM_NAME:"
+    virsh snapshot-list "$VM_NAME" 2>/dev/null || echo "  (none)"
+}
+
+cmd_vm_delete_snapshot() {
+    local VM_NAME="$1"
+    local SNAP_NAME="$2"
+
+    if [ -z "$SNAP_NAME" ]; then
+        echo "Usage: nextraos-vm delete-snapshot <vm> <name>" >&2
+        exit 1
+    fi
+
+    echo "==> Deleting snapshot '$SNAP_NAME' from $VM_NAME"
+    virsh snapshot-delete "$VM_NAME" "$SNAP_NAME" >/dev/null 2>&1
+    echo "==> Snapshot '$SNAP_NAME' deleted"
+}
+
+# --- Memory management ---
+cmd_vm_setmem() {
+    local VM_NAME="$1"
+    local NEW_RAM="$2"
+
+    if [ -z "$NEW_RAM" ]; then
+        echo "Usage: nextraos-vm setmem <vm> <MB>" >&2
+        exit 1
+    fi
+
+    if ! virsh dominfo "$VM_NAME" >/dev/null 2>&1; then
+        echo "==> $VM_NAME is not running"
+        return 1
+    fi
+
+    echo "==> Setting $VM_NAME memory to ${NEW_RAM}MB"
+    virsh setmem "$VM_NAME" "$((NEW_RAM * 1024))" --config >/dev/null 2>&1
+    echo "==> Memory updated (takes effect on next start, or use --live for immediate)"
+}
+
+setup_hugepages() {
+    if [ "${VM_HUGEPAGES:-false}" != "true" ]; then
+        return 0
+    fi
+
+    local VM_RAM_MB="$1"
+    local HP_SIZE_KB=2048
+    local NEEDED=$((VM_RAM_MB * 1024 / HP_SIZE_KB))
+    local CURRENT=$(cat /proc/sys/vm/nr_hugepages 2>/dev/null || echo 0)
+
+    if [ "$CURRENT" -ge "$NEEDED" ]; then
+        echo "==> Hugepages already allocated ($CURRENT pages)"
+        return 0
+    fi
+
+    echo "==> Allocating hugepages for VM (${NEEDED} pages, ${HP_SIZE_KB}kB each)"
+    echo "$NEEDED" > /proc/sys/vm/nr_hugepages 2>/dev/null || {
+        echo "==> WARNING: Could not allocate hugepages (may need root or sysctl)"
+        return 1
+    }
+    echo "==> Hugepages allocated"
+}
+
+get_hugepages_xml() {
+    if [ "${VM_HUGEPAGES:-false}" != "true" ]; then
+        return 0
+    fi
+    cat << 'HUGEXML'
+    <memoryBacking>
+      <hugepages>
+        <page size='2048' unit='KiB'/>
+      </hugepages>
+    </memoryBacking>
+HUGEXML
 }
 
 # --- Windows VM ---
@@ -87,11 +301,12 @@ cmd_windows_start() {
     fi
     read -r VM_RAM VM_CPUS <<< "$(get_vm_resources)"
     echo "==> Starting Windows VM (RAM: ${VM_RAM}MB, CPUs: $VM_CPUS)"
+    setup_hugepages "$VM_RAM"
     virt-install \
         --name "$VM_WIN_NAME" \
         --ram "$VM_RAM" \
         --vcpus "$VM_CPUS" \
-        --disk path="$VM_WIN_DISK",format=qcow2,bus=virtio \
+        --disk path="$VM_WIN_DISK",format=qcow2,bus=virtio,cache=none,discard=unmap \
         --os-variant win11 \
         --network model=virtio \
         --graphics spice,listen=0.0.0.0,port="$VM_WIN_SPICE" \
@@ -100,6 +315,8 @@ cmd_windows_start() {
         --boot uefi \
         --cpu host-passthrough \
         --features hyperv.relaxed=on,hyperv.vapic=on,hyperv.spinlocks=on \
+        --memballoon model=virtio \
+        $(get_hugepages_xml | sed 's/^/--xml /' | tr '\n' ' ') \
         --noautoconsole 2>/dev/null
     echo "==> Windows VM started. SPICE: spice://localhost:$VM_WIN_SPICE"
 }
@@ -129,22 +346,63 @@ cmd_windows_status() {
 }
 
 cmd_windows_execute() {
-    APP="$1"
+    local APP="$1"
+    local HEADLESS="$2"
+    local AUTO_SUSPEND="$3"
+
     if [ -z "$APP" ]; then
-        echo "Usage: nextraos-vm execute windows <app.exe>" >&2
+        echo "Usage: nextraos-vm execute [options] windows <app.exe>" >&2
         exit 1
     fi
+
+    # Auto-start if not running
     if ! virsh dominfo "$VM_WIN_NAME" >/dev/null 2>&1; then
         echo "==> Windows VM is not running. Starting..."
         cmd_windows_start
-        echo "==> Waiting for VM to boot..."
-        sleep 30
+        wait_for_agent_ready "$VM_WIN_NAME"
     fi
-    virsh qemu-agent-command "$VM_WIN_NAME" \
+
+    # Execute via guest agent
+    echo "==> Executing in Windows VM: $APP"
+    RESULT=$(virsh qemu-agent-command "$VM_WIN_NAME" \
         "{\"execute\":\"guest-exec\",\"arguments\":{\"path\":\"cmd.exe\",\"arg\":[\"/c\",\"$APP\"],\"capture-output\":true}}" \
-        2>/dev/null || {
+        2>/dev/null) || {
         echo "==> Could not execute via agent. Connect via SPICE: spice://localhost:$VM_WIN_SPICE"
+        return 1
     }
+
+    EXEC_PID=$(echo "$RESULT" | jq -r '.return.pid 2>/dev/null')
+    if [ -z "$EXEC_PID" ] || [ "$EXEC_PID" = "null" ]; then
+        echo "==> Could not get process ID from agent"
+        return 1
+    fi
+
+    echo "==> App started (PID: $EXEC_PID)"
+
+    # Auto-suspend tracking
+    if [ "$AUTO_SUSPEND" = "true" ] && [ "${VM_AUTO_SUSPEND:-true}" = "true" ]; then
+        (
+            while true; do
+                STATUS=$(virsh qemu-agent-command "$VM_WIN_NAME" \
+                    "{\"execute\":\"guest-exec-status\",\"arguments\":{\"pid\":$EXEC_PID}}" \
+                    2>/dev/null) || break
+                EXITED=$(echo "$STATUS" | jq -r '.return.exited 2>/dev/null')
+                if [ "$EXITED" = "true" ]; then
+                    GRACE="${VM_SUSPEND_GRACE_PERIOD:-30}"
+                    echo "==> App exited. Waiting ${GRACE}s before suspend..."
+                    sleep "$GRACE"
+                    virsh save "$VM_WIN_NAME" \
+                        "$VM_BASE_DIR/windows/save/auto-suspend-$(date +%Y%m%d-%H%M%S).sav" \
+                        >/dev/null 2>&1 && \
+                        echo "==> Windows VM auto-suspended. Memory freed." || \
+                        echo "==> Auto-suspend failed."
+                    break
+                fi
+                sleep 2
+            done
+        ) &
+        echo "==> Auto-suspend monitor running in background."
+    fi
 }
 
 # --- macOS VM ---
@@ -153,7 +411,6 @@ VM_MAC_DIR="$HOME/.local/share/nextraos/vms/macos"
 VM_MAC_DISK="$VM_MAC_DIR/macos.qcow2"
 VM_MAC_SPICE="5931"
 VM_MAC_OC="$VM_MAC_DIR/OpenCore.qcow2"
-OVMF_DIR="/usr/share/OVMF"
 
 cmd_macos_create() {
     mkdir -p "$VM_MAC_DIR"
@@ -181,13 +438,11 @@ cmd_macos_download_iso() {
     echo "==> Downloading macOS Recovery image..."
     echo "    This uses Apple's public CDN for recovery images."
 
-    # Use OSX-KVM's fetch script if available, otherwise direct download
     if command -v python3 >/dev/null 2>&1; then
         cd "$VM_MAC_DIR"
         python3 -c "
 import urllib.request, plistlib, sys
 
-# macOS Sonoma recovery info
 url = 'https://osrecovery.apple.com/Info.plist?version=14&build=23A344&bank=progress&assets=2'
 try:
     resp = urllib.request.urlopen(url)
@@ -228,18 +483,6 @@ cmd_macos_start() {
         return 0
     fi
 
-    # Check for OVMF
-    OVMF_CODE="$OVMF_DIR/OVMF_CODE_4M.fd"
-    OVMF_VARS="$OVMF_DIR/OVMF_VARS_4M.fd"
-    if [ ! -f "$OVMF_CODE" ]; then
-        OVMF_CODE="$OVMF_DIR/OVMF.fd"
-        OVMF_VARS="$OVMF_DIR/OVMF_VARS.fd"
-    fi
-    if [ ! -f "$OVMF_CODE" ]; then
-        echo "==> OVMF firmware not found. Install ovmf package."
-        exit 1
-    fi
-
     # Check AVX2 for macOS 13+
     if ! grep -q 'avx2' /proc/cpuinfo; then
         echo "==> WARNING: CPU does not support AVX2"
@@ -251,94 +494,161 @@ cmd_macos_start() {
     # macOS needs more RAM
     [ "$VM_RAM" -lt 4096 ] && VM_RAM=4096
 
+    APPLE_SMC="ourhardworkbythesewordsguardedpleasedontsteal(c)AppleComputerInc"
+
     echo "==> Starting macOS VM (RAM: ${VM_RAM}MB, CPUs: $VM_CPUS)"
+    setup_hugepages "$VM_RAM"
 
-    # Copy OVMF_VARS for writable variables
-    cp -n "$OVMF_VARS" "$VM_MAC_DIR/OVMF_VARS.fd" 2>/dev/null || true
-
-    qemu-system-x86_64 \
-        -name "NextraOS-macOS" \
-        -enable-kvm \
-        -m "$VM_RAM" \
-        -cpu Penryn,kvm=on,vendor=GenuineIntel,+invtsc,vmware-cpuid-freq=on,+ssse3,+sse4.2,+popcnt,+avx,+avx2,+aes,+xsave,+xsaveopt \
-        -machine q35,accel=kvm \
-        -smp "$VM_CPUS",cores=$((VM_CPUS/2)),sockets=1,threads=2 \
-        -drive if=pflash,format=raw,readonly=on,file="$OVMF_CODE" \
-        -drive if=pflash,format=raw,file="$VM_MAC_DIR/OVMF_VARS.fd" \
-        -device isa-applesmc,osk="ourhardworkbythesewordsguardedpleasedontsteal(c)AppleComputerInc" \
-        -smbios type=2 \
-        -device qemu-xhci,id=xhci \
-        -device usb-kbd,bus=xhci.0 \
-        -device usb-tablet,bus=xhci.0 \
-        -device ich9-intel-hda -device hda-duplex \
-        -device ich9-ahci,id=sata \
-        -drive id=OpenCoreBoot,if=none,format=qcow2,file="$VM_MAC_OC" \
-        -device ide-hd,bus=sata.2,drive=OpenCoreBoot,bootindex=1 \
-        -drive id=MacHDD,if=none,format=qcow2,file="$VM_MAC_DISK" \
-        -device ide-hd,bus=sata.4,drive=MacHDD,bootindex=2 \
-        -netdev user,id=net0,hostfwd=tcp::2222-:22 \
-        -device virtio-net-pci,netdev=net0 \
-        -device virtio-vga \
-        -spice port="$VM_MAC_SPICE",disable-ticketing=on \
-        -display gtk,gl=on \
-        -monitor stdio \
-        -pidfile "$VM_MAC_DIR/qemu.pid" \
-        &
+    virt-install \
+        --name "$VM_MAC_NAME" \
+        --ram "$VM_RAM" \
+        --vcpus "$VM_CPUS" \
+        --disk path="$VM_MAC_DISK",format=qcow2,bus=virtio,cache=none,discard=unmap \
+        --disk path="$VM_MAC_OC",format=qcow2,bus=virtio,device=cdrom \
+        --os-variant macVentura \
+        --network model=virtio \
+        --graphics spice,listen=0.0.0.0,port="$VM_MAC_SPICE" \
+        --video qxl \
+        --boot uefi \
+        --cpu host-passthrough \
+        --memballoon model=virtio \
+        --qemu-commandline="-device isa-applesmc,osk=$APPLE_SMC" \
+        --qemu-commandline="-smbios type=2" \
+        $(get_hugepages_xml | sed 's/^/--xml /' | tr '\n' ' ') \
+        --noautoconsole 2>/dev/null
 
     echo "==> macOS VM started. SPICE: spice://localhost:$VM_MAC_SPICE"
 }
 
 cmd_macos_stop() {
     if ! virsh dominfo "$VM_MAC_NAME" >/dev/null 2>&1; then
-        # Try killing QEMU process directly
-        if [ -f "$VM_MAC_DIR/qemu.pid" ]; then
-            PID=$(cat "$VM_MAC_DIR/qemu.pid")
-            if kill -0 "$PID" 2>/dev/null; then
-                echo "==> Stopping macOS VM (PID: $PID)"
-                kill "$PID"
-                sleep 5
-                kill -9 "$PID" 2>/dev/null || true
-            fi
-            rm -f "$VM_MAC_DIR/qemu.pid"
-        fi
         echo "==> macOS VM is not running"
         return 0
     fi
     echo "==> Stopping macOS VM"
     virsh shutdown "$VM_MAC_NAME" 2>/dev/null || true
+    TIMEOUT=30; ELAPSED=0
+    while virsh dominfo "$VM_MAC_NAME" >/dev/null 2>&1; do
+        sleep 1; ELAPSED=$((ELAPSED + 1))
+        [ "$ELAPSED" -ge "$TIMEOUT" ] && virsh destroy "$VM_MAC_NAME" 2>/dev/null || true
+    done
     echo "==> macOS VM stopped"
 }
 
 cmd_macos_status() {
-    if [ -f "$VM_MAC_DIR/qemu.pid" ]; then
-        PID=$(cat "$VM_MAC_DIR/qemu.pid")
-        if kill -0 "$PID" 2>/dev/null; then
-            echo "==> macOS VM is running (PID: $PID)"
-            return 0
-        fi
+    if virsh dominfo "$VM_MAC_NAME" >/dev/null 2>&1; then
+        echo "==> macOS VM is running"
+        virsh dominfo "$VM_MAC_NAME"
+    else
+        echo "==> macOS VM is not running"
     fi
-    echo "==> macOS VM is not running"
 }
 
 cmd_macos_execute() {
-    APP="$1"
+    local APP="$1"
+    local HEADLESS="$2"
+    local AUTO_SUSPEND="$3"
+
     if [ -z "$APP" ]; then
-        echo "Usage: nextraos-vm execute macos <app>" >&2
+        echo "Usage: nextraos-vm execute [options] macos <app>" >&2
         exit 1
     fi
-    if ! cmd_macos_status >/dev/null 2>&1; then
+
+    # Auto-start if not running
+    if ! virsh dominfo "$VM_MAC_NAME" >/dev/null 2>&1; then
         echo "==> macOS VM is not running. Starting..."
         cmd_macos_start
-        echo "==> Waiting for VM to boot..."
-        sleep 60
+        wait_for_ssh_ready
     fi
+
     echo "==> Executing in macOS VM: $APP"
-    ssh -p 2222 -o StrictHostKeyChecking=no user@localhost "$APP" 2>/dev/null || {
-        echo "==> Could not execute via SSH. Connect via SPICE: spice://localhost:$VM_MAC_SPICE"
-    }
+
+    if [ "$AUTO_SUSPEND" = "true" ] && [ "${VM_AUTO_SUSPEND:-true}" = "true" ]; then
+        # Block on SSH command, then auto-suspend
+        ssh -p 2222 -o StrictHostKeyChecking=no user@localhost "$APP" 2>/dev/null
+        EXIT_CODE=$?
+
+        GRACE="${VM_SUSPEND_GRACE_PERIOD:-30}"
+        echo "==> App exited (code: $EXIT_CODE). Waiting ${GRACE}s before suspend..."
+        sleep "$GRACE"
+        virsh save "$VM_MAC_NAME" \
+            "$VM_BASE_DIR/macos/save/auto-suspend-$(date +%Y%m%d-%H%M%S).sav" \
+            >/dev/null 2>&1 && \
+            echo "==> macOS VM auto-suspended. Memory freed." || \
+            echo "==> Auto-suspend failed."
+    else
+        ssh -p 2222 -o StrictHostKeyChecking=no user@localhost "$APP" 2>/dev/null || {
+            echo "==> Could not execute via SSH. Connect via SPICE: spice://localhost:$VM_MAC_SPICE"
+        }
+    fi
+}
+
+# --- Parse execute options ---
+parse_execute_opts() {
+    HEADLESS="false"
+    AUTO_SUSPEND="true"
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --headless)      HEADLESS="true"; shift ;;
+            --no-auto-suspend) AUTO_SUSPEND="false"; shift ;;
+            *)               break ;;
+        esac
+    done
+}
+
+# --- Autostart (systemd user service) ---
+SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
+
+cmd_vm_enable() {
+    local VM_NAME="$1"
+    local SERVICE_FILE="$SYSTEMD_USER_DIR/nextraos-${VM_NAME}.service"
+
+    mkdir -p "$SYSTEMD_USER_DIR"
+
+    if [ -f "$SERVICE_FILE" ]; then
+        echo "==> $VM_NAME autostart already enabled"
+        return 0
+    fi
+
+    cat > "$SERVICE_FILE" << SERVICEEOF
+[Unit]
+Description=NextraOS ${VM_NAME} VM
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/virsh start ${VM_NAME}
+ExecStop=/usr/local/bin/nextraos-vm suspend ${VM_NAME}
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+SERVICEEOF
+
+    systemctl --user daemon-reload 2>/dev/null || true
+    systemctl --user enable "nextraos-${VM_NAME}.service" 2>/dev/null || true
+    echo "==> $VM_NAME autostart enabled"
+}
+
+cmd_vm_disable() {
+    local VM_NAME="$1"
+    local SERVICE_FILE="$SYSTEMD_USER_DIR/nextraos-${VM_NAME}.service"
+
+    if [ ! -f "$SERVICE_FILE" ]; then
+        echo "==> $VM_NAME autostart already disabled"
+        return 0
+    fi
+
+    systemctl --user disable "nextraos-${VM_NAME}.service" 2>/dev/null || true
+    rm -f "$SERVICE_FILE"
+    systemctl --user daemon-reload 2>/dev/null || true
+    echo "==> $VM_NAME autostart disabled"
 }
 
 # --- Main dispatch ---
+load_config
+
 ACTION="${1:-}"
 TARGET="${2:-}"
 
@@ -365,7 +675,6 @@ case "$ACTION" in
     list)
         echo "==> VMs:"
         virsh list --all 2>/dev/null || true
-        [ -f "$VM_MAC_DIR/qemu.pid" ] && echo "  macos (QEMU direct)"
         ;;
     create)
         case "$TARGET" in
@@ -380,11 +689,75 @@ case "$ACTION" in
             *)       echo "Specify: windows or macos"; usage ;;
         esac ;;
     execute)
-        VM_TARGET="${2:-}"
-        APP="${3:-}"
+        shift
+        parse_execute_opts "$@"
+        VM_TARGET="${1:-}"
+        APP="${2:-}"
         case "$VM_TARGET" in
-            windows) cmd_windows_execute "$APP" ;;
-            macos)   cmd_macos_execute "$APP" ;;
+            windows) cmd_windows_execute "$APP" "$HEADLESS" "$AUTO_SUSPEND" ;;
+            macos)   cmd_macos_execute "$APP" "$HEADLESS" "$AUTO_SUSPEND" ;;
+            *)       echo "Specify: windows or macos"; usage ;;
+        esac ;;
+    suspend)
+        case "$TARGET" in
+            windows) cmd_vm_suspend "$VM_WIN_NAME" ;;
+            macos)   cmd_vm_suspend "$VM_MAC_NAME" ;;
+            *)       echo "Specify: windows or macos"; usage ;;
+        esac ;;
+    resume)
+        case "$TARGET" in
+            windows) cmd_vm_resume "$VM_WIN_NAME" ;;
+            macos)   cmd_vm_resume "$VM_MAC_NAME" ;;
+            *)       echo "Specify: windows or macos"; usage ;;
+        esac ;;
+    snapshot)
+        VM_TARGET="${2:-}"
+        SNAP_NAME="${3:-}"
+        case "$VM_TARGET" in
+            windows) cmd_vm_snapshot "$VM_WIN_NAME" "$SNAP_NAME" ;;
+            macos)   cmd_vm_snapshot "$VM_MAC_NAME" "$SNAP_NAME" ;;
+            *)       echo "Specify: windows or macos"; usage ;;
+        esac ;;
+    restore-snapshot)
+        VM_TARGET="${2:-}"
+        SNAP_NAME="${3:-}"
+        case "$VM_TARGET" in
+            windows) cmd_vm_restore_snapshot "$VM_WIN_NAME" "$SNAP_NAME" ;;
+            macos)   cmd_vm_restore_snapshot "$VM_MAC_NAME" "$SNAP_NAME" ;;
+            *)       echo "Specify: windows or macos"; usage ;;
+        esac ;;
+    list-snapshots)
+        case "$TARGET" in
+            windows) cmd_vm_list_snapshots "$VM_WIN_NAME" ;;
+            macos)   cmd_vm_list_snapshots "$VM_MAC_NAME" ;;
+            *)       echo "Specify: windows or macos"; usage ;;
+        esac ;;
+    delete-snapshot)
+        VM_TARGET="${2:-}"
+        SNAP_NAME="${3:-}"
+        case "$VM_TARGET" in
+            windows) cmd_vm_delete_snapshot "$VM_WIN_NAME" "$SNAP_NAME" ;;
+            macos)   cmd_vm_delete_snapshot "$VM_MAC_NAME" "$SNAP_NAME" ;;
+            *)       echo "Specify: windows or macos"; usage ;;
+        esac ;;
+    enable)
+        case "$TARGET" in
+            windows) cmd_vm_enable "$VM_WIN_NAME" ;;
+            macos)   cmd_vm_enable "$VM_MAC_NAME" ;;
+            *)       echo "Specify: windows or macos"; usage ;;
+        esac ;;
+    disable)
+        case "$TARGET" in
+            windows) cmd_vm_disable "$VM_WIN_NAME" ;;
+            macos)   cmd_vm_disable "$VM_MAC_NAME" ;;
+            *)       echo "Specify: windows or macos"; usage ;;
+        esac ;;
+    setmem)
+        VM_TARGET="${2:-}"
+        NEW_RAM="${3:-}"
+        case "$VM_TARGET" in
+            windows) cmd_vm_setmem "$VM_WIN_NAME" "$NEW_RAM" ;;
+            macos)   cmd_vm_setmem "$VM_MAC_NAME" "$NEW_RAM" ;;
             *)       echo "Specify: windows or macos"; usage ;;
         esac ;;
     *) usage ;;

@@ -344,6 +344,51 @@ Fixed `sleep` delays are replaced with active polling:
 
 ---
 
+# Memory Management
+
+## Balloon Driver
+
+Both Windows and macOS VMs use the virtio balloon driver for
+dynamic memory adjustment.
+
+```bash
+# Adjust VM memory at runtime (requires balloon driver in guest)
+nextraos-vm setmem windows 4096   # Set to 4GB
+nextraos-vm setmem macos 8192     # Set to 8GB
+```
+
+The balloon driver allows the host to reclaim unused memory from
+VM guests, improving overall system memory utilization.
+
+## Hugepages (Optional)
+
+For VMs with 4GB+ RAM, hugepages can reduce TLB misses and improve
+memory access performance.
+
+```bash
+# Enable in ~/.config/nextraos/vm.conf
+VM_HUGEPAGES=true
+```
+
+When enabled:
+
+- 2MB hugepages are allocated before VM start
+- Requires sufficient free pages on the host
+- May require root or sysctl configuration
+- Not enabled by default (adds complexity)
+
+## Configuration
+
+```bash
+# ~/.config/nextraos/vm.conf
+VM_HUGEPAGES=false           # Enable hugepages (default: false)
+VM_AUTO_SUSPEND=true         # Auto-suspend on app exit
+VM_SUSPEND_GRACE_PERIOD=30   # Seconds before auto-suspend
+VM_READY_TIMEOUT=120         # Agent/SSH ready timeout
+```
+
+---
+
 # Automation Scripts
 
 ## nextraos-vm-setup
@@ -444,12 +489,9 @@ sudo apt install spice-gtk
 ## VM Management
 
 - CPU pinning for dedicated VM cores
-- I/O optimization (virtio-scsi, cache=none, io_uring)
-- Memory balloon driver for dynamic memory adjustment
 - Headless mode for execute-only workloads
 - SPICE on-demand activation
 - Snapshot auto-rotation (configurable max count)
-- Systemd integration for login-time autostart
 
 ## Windows
 

@@ -1,0 +1,6 @@
+[Unit]
+Description=NextraOS VMs
+After=network-online.target
+
+[Install]
+WantedBy=default.target

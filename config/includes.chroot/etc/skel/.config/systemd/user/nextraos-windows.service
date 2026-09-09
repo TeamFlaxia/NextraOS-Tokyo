@@ -1,0 +1,12 @@
+[Unit]
+Description=NextraOS Windows VM
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/virsh start windows
+ExecStop=/usr/local/bin/nextraos-vm suspend windows
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

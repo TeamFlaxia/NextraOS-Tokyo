@@ -19,6 +19,8 @@ libvirt-clients
 virt-manager
 bridge-utils
 
+jq
+
 docker.io
 docker-compose
 

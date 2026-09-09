@@ -1,0 +1,12 @@
+[Unit]
+Description=NextraOS macOS VM
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/virsh start macos
+ExecStop=/usr/local/bin/nextraos-vm suspend macos
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

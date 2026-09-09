@@ -1,0 +1,23 @@
+#!/bin/sh
+# NextraOS VM auto-suspend on system sleep
+# Placed in /etc/systemd/system-sleep.d/
+
+VM_BASE_DIR="$HOME/.local/share/nextraos/vms"
+
+case "$1" in
+    suspend|hibernate)
+        for VM_NAME in windows macos; do
+            if virsh dominfo "$VM_NAME" >/dev/null 2>&1; then
+                SAVE_DIR="$VM_BASE_DIR/$VM_NAME/save"
+                mkdir -p "$SAVE_DIR"
+                SAVE_FILE="$SAVE_DIR/system-suspend-$(date +%Y%m%d-%H%M%S).sav"
+                virsh save "$VM_NAME" "$SAVE_FILE" 2>/dev/null && \
+                    echo "NextraOS: $VM_NAME suspended" >&2 || \
+                    echo "NextraOS: Failed to suspend $VM_NAME" >&2
+            fi
+        done
+        ;;
+    resume|thaw)
+        # Resume is manual - user decides which VMs to bring back
+        ;;
+esac

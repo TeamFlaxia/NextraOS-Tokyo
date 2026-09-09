@@ -8,32 +8,27 @@ if [ -z "$EXECUTABLE" ]; then
     exit 1
 fi
 
-APP_ID=$(echo "$EXECUTABLE" | md5sum | cut -d' ' -f1)
-
 echo "==> Wine failed. Falling back to Windows VM..."
 
 # Ensure VM disk exists
 if [ ! -f "$HOME/.local/share/nextraos/vms/windows/disk.qcow2" ]; then
     echo "==> Creating VM disk..."
-    nextraos-vm create
+    nextraos-vm create windows
 fi
 
 # Download ISO if not present
 if ! ls "$HOME/.local/share/nextraos/vms/windows/"*.iso >/dev/null 2>&1; then
     echo "==> Downloading Windows ISO..."
-    nextraos-vm download-iso
+    nextraos-vm download-iso windows
 fi
 
-# Start VM if not running
+# Start VM if not running (nextraos-vm execute handles agent ready polling)
 if ! virsh dominfo windows >/dev/null 2>&1; then
     echo "==> Starting Windows VM..."
-    nextraos-vm start
-    echo "==> Waiting for VM to boot (30s)..."
-    sleep 30
+    nextraos-vm start windows
 fi
 
-# Launch application in VM
-echo "==> Launching application in VM..."
+# Launch application in VM (auto-suspend enabled by default)
 nextraos-vm execute "$EXECUTABLE"
 
 echo "==> Connect via SPICE: spice://localhost:5930"
