@@ -467,6 +467,331 @@ Configuration:
 
 ---
 
+# VM Suspend / Resume
+
+VM suspend preserves the full VM state to disk and frees host RAM.
+
+Decision:
+
+**Use `virsh save` / `virsh restore` for both Windows and macOS VMs.**
+
+Rationale:
+
+- Both VMs will be managed via libvirt after Phase 1 unification
+- `virsh save` writes the complete VM state (CPU, memory, device state)
+  to a file and releases all host RAM
+- `virsh restore` resumes from the saved state file
+- This is the standard libvirt mechanism and works reliably
+
+Implementation:
+
+    nextraos-vm suspend <vm>     # virsh save
+    nextraos-vm resume <vm>      # virsh restore (latest save file)
+
+Save file location:
+
+    ~/.local/share/nextraos/vms/<vm>/save/suspend-<timestamp>.sav
+
+Considerations:
+
+- SPICE connection drops during suspend; client must reconnect after
+  resume
+- Save files are approximately equal to VM RAM size
+- Multiple save files may accumulate; cleanup policy needed
+- Systemd integration: auto-suspend on `systemctl suspend` / hibernate
+
+Alternatives considered:
+
+- QEMU `savevm` / `loadvm`: Requires QEMU monitor access; less
+  portable across VM management methods
+- Live migration: Overkill for single-host desktop use
+- Pause (`virsh suspend`): Does not free host RAM
+
+---
+
+# VM Snapshots
+
+Snapshots capture VM state at a point in time for rollback.
+
+Decision:
+
+**Use `virsh snapshot-create-as` with qcow2 internal snapshots.**
+
+Rationale:
+
+- qcow2 internal snapshots are self-contained (single file)
+- libvirt manages snapshot metadata automatically
+- Works for both Windows and macOS VMs
+
+Implementation:
+
+    nextraos-vm snapshot <vm> [name]            # create
+    nextraos-vm restore-snapshot <vm> [name]     # revert
+    nextraos-vm list-snapshots <vm>              # list
+    nextraos-vm delete-snapshot <vm> <name>      # delete
+
+Snapshot storage:
+
+    ~/.local/share/nextraos/vms/<vm>/snapshots/
+
+Considerations:
+
+- Internal snapshots consume disk space proportional to changed blocks
+- Disk-only snapshots (`--disk-only`) are faster but less complete
+- External snapshots require careful disk chain management
+- Default to internal snapshots for simplicity
+- Maximum snapshot count per VM: 10 (configurable)
+
+---
+
+# Auto-Suspend on Application Exit
+
+When a user launches an application via `nextraos-vm execute`, the VM
+should auto-suspend after the application exits and a configurable
+grace period.
+
+Decision:
+
+**Track process exit via guest agent (Windows) or SSH exit code
+(macOS), then auto-suspend after a configurable grace period.**
+
+Rationale:
+
+- VMs consume significant RAM and CPU even when idle
+- Users typically launch one application at a time per VM
+- Auto-suspend frees host resources automatically
+- Grace period allows follow-up actions before suspend
+
+Implementation:
+
+    # ~/.config/nextraos/vm.conf
+    VM_AUTO_SUSPEND=true
+    VM_SUSPEND_GRACE_PERIOD=30
+
+Flow:
+
+    nextraos-vm execute <vm> <app>
+        |
+        +--> VM not running? Start it
+        |
+        +--> Wait for agent/SSH ready
+        |
+        +--> Execute app (track PID / block on SSH)
+        |
+        +--> App exits
+        |
+        +--> Grace period (configurable, default 30s)
+        |
+        +--> virsh save (suspend, free memory)
+
+Windows VM (guest agent):
+
+    virsh qemu-agent-command <vm> \
+      '{"execute":"guest-exec","arguments":{"path":"cmd.exe","arg":["/c","APP"],"capture-output":true}}'
+
+    # Poll guest-exec-status for exit detection
+    virsh qemu-agent-command <vm> \
+      '{"execute":"guest-exec-status","arguments":{"pid":PID}}'
+
+macOS VM (SSH):
+
+    ssh -p 2222 user@localhost "$APP"
+    EXIT_CODE=$?
+    # exit code available immediately
+
+Scope:
+
+- Auto-suspend applies only to apps launched via `nextraos-vm execute`
+- Apps launched via SPICE (manual desktop interaction) are not tracked
+- `--no-auto-suspend` flag disables auto-suspend for a single execution
+
+Alternatives considered:
+
+- Periodic idle polling: Less reliable, cannot distinguish "user
+  idle" from "app running but idle"
+- D-Bus signals from guest: Requires guest-side agent installation;
+  not available for macOS
+- User notification only: Less automated; user must manually suspend
+
+---
+
+# Auto-Start and Agent Ready Detection
+
+`nextraos-vm execute` should automatically start a VM if it is not
+running, and wait for the guest to be ready before executing.
+
+Decision:
+
+**Replace fixed `sleep` delays with active readiness polling.**
+
+Rationale:
+
+- Fixed sleep (30s or 60s) wastes time on fast hardware and fails
+  on slow hardware
+- Active polling ensures the agent/SSH is actually ready
+- Better user experience: no unnecessary waiting
+
+Implementation:
+
+Windows VM (guest agent polling):
+
+    wait_for_agent_ready() {
+        TIMEOUT=120; ELAPSED=0
+        while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
+            virsh qemu-agent-command <vm> \
+              '{"execute":"guest-sync","arguments":{"id":1}}' \
+              >/dev/null 2>&1 && return 0
+            sleep 1; ELAPSED=$((ELAPSED + 1))
+        done
+        return 1
+    }
+
+macOS VM (SSH polling):
+
+    wait_for_ssh_ready() {
+        TIMEOUT=120; ELAPSED=0
+        while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
+            ssh -p 2222 -o ConnectTimeout=1 -o BatchMode=yes \
+              user@localhost true 2>/dev/null && return 0
+            sleep 1; ELAPSED=$((ELAPSED + 1))
+        done
+        return 1
+    }
+
+Timeout:
+
+- Default: 120 seconds
+- Configurable via `~/.config/nextraos/vm.conf`
+- Warning emitted if timeout reached without readiness
+
+---
+
+# CPU Pinning and I/O Optimization
+
+VM performance can be improved by pinning vCPUs to specific host
+cores and optimizing disk I/O.
+
+Decision:
+
+**Use CPU pinning via libvirt cputune and virtio-scsi with
+cache=none for I/O.**
+
+CPU Pinning:
+
+- Dedicate specific host cores to VM execution
+- Reserve cores 0-1 (or 0-3 on high-core systems) for host
+  responsiveness
+- Assign remaining cores to VM via `<cputune><vcpupin>`
+- Prevents VM from starving host processes
+
+I/O Optimization:
+
+- Use virtio-scsi controller for better throughput
+- `cache=none`: Bypass host page cache; guest manages caching
+- `discard=unmap`: Enable TRIM for qcow2 thin provisioning
+- `aio=io_uring`: Async I/O on Linux 5.1+ (if available)
+
+Implementation:
+
+    virt-install \
+        --disk ...,bus=virtio,cache=none,discard=unmap \
+        --xml "<cputune><vcpupin vcpu='0' cpuset='2'/></cputune>" \
+        ...
+
+Alternatives considered:
+
+- CPU shares (`cpu_shares`): Proportional, not exclusive; less
+  predictable
+- cgroup v2 cpu.max: More complex; libvirt cputune is sufficient
+- NUMA pinning: Overkill for typical desktop VMs
+
+---
+
+# Memory Optimization (Balloon / Hugepages)
+
+VM memory can be dynamically managed and optimized.
+
+Decision:
+
+**Use virtio balloon driver for dynamic memory adjustment and
+optionally enable hugepages for large VMs.**
+
+Balloon Driver:
+
+- virtio-memballoon allows runtime memory adjustment
+- Host can reclaim memory from idle VM guests
+- Reduces memory pressure when VMs are running but underutilized
+
+Implementation:
+
+    virt-install --memballoon model=virtio ...
+
+    # Runtime adjustment
+    virsh setmem <vm> 2048 --config   # shrink
+    virsh setmem <vm> 8192 --config   # expand
+
+Hugepages (optional, for VMs with 4GB+ RAM):
+
+- 2MB hugepages reduce TLB misses
+- Requires host kernel configuration
+- Not enabled by default (adds complexity)
+
+Implementation:
+
+    # Host: allocate hugepages
+    echo 2048 > /proc/sys/vm/nr_hugepages
+
+    # libvirt XML
+    <memoryBacking>
+      <hugepages>
+        <page size='2048' unit='KiB'/>
+      </hugepages>
+    </memoryBacking>
+
+Alternatives considered:
+
+- KSM (Kernel Same-page Merging): Deduplicates memory pages across
+  VMs; security concern with cross-VM data leakage
+- Memory hotplug: Not supported by all guest OS configurations
+- Swap: Last resort; severely degrades VM performance
+
+---
+
+# Display Optimization (Headless / SPICE on-demand)
+
+VM display resources can be reduced when only executing commands.
+
+Decision:
+
+**Support headless mode for `nextraos-vm execute` and on-demand
+SPICE activation.**
+
+Rationale:
+
+- `execute` use case does not require a display
+- SPICE server consumes CPU and memory even when no client connects
+- Headless mode reduces resource usage for batch/scripted execution
+
+Implementation:
+
+    # Headless execute
+    nextraos-vm execute --headless windows "C:\app.exe"
+    # -> virt-install --graphics none
+
+    # SPICE on-demand (future)
+    nextraos-vm display on <vm>   # enable SPICE
+    nextraos-vm display off <vm>  # disable SPICE
+
+Graphics options:
+
+| Mode | Use Case | Resource |
+|---|---|---|
+| SPICE (default) | Interactive desktop use | Medium |
+| VNC | Legacy clients | Low |
+| Headless | execute-only, batch operations | Minimal |
+
+---
+
 # Research Policy
 
 Every major dependency must be reviewed periodically.

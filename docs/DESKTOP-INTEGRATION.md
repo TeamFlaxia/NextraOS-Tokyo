@@ -18,7 +18,7 @@ or virtualization technology is being used.
 | L1 | Flatpak | Sandboxed but native-feeling | Complete |
 | L2 | Wine/Bottles/Proton | Windows compatibility | **Native GPU** |
 | L3 | Waydroid | Android container | Complete |
-| L4 | QEMU/KVM + OpenCore | macOS VM | **Full desktop only** |
+| L4 | libvirt/QEMU/KVM + OpenCore | macOS VM | **Full desktop only** |
 
 ---
 
@@ -134,7 +134,7 @@ Container-based Android environment.
 ```
 Linux Desktop (KDE Plasma Wayland)
     │
-    └── QEMU/KVM
+    └── libvirt / QEMU/KVM
         ├── OpenCore bootloader
         ├── macOS Recovery DMG
         ├── SPICE display
@@ -143,12 +143,14 @@ Linux Desktop (KDE Plasma Wayland)
 
 ## Components
 
-### QEMU/KVM
+### libvirt / QEMU/KVM
 
-Direct QEMU/KVM virtualization (not Docker).
+QEMU/KVM virtualization managed via libvirt (same as Windows VM).
 
 - Hardware-accelerated virtualization
 - KVM acceleration via /dev/kvm
+- `virt-install` for VM creation
+- `virsh` for lifecycle management (start, stop, suspend, snapshot)
 - systemd user service management
 
 ### OpenCore
@@ -203,7 +205,7 @@ macOS has no RemoteApp equivalent protocol.
 |---|---|---|---|
 | Windows (Wine) | Wine prefix | Native filesystem | Host network |
 | Android | LXC container | bind mount | Bridge |
-| macOS VM | QEMU/KVM | SPICE webdav | NAT |
+| macOS VM | libvirt/QEMU/KVM | SPICE webdav | NAT |
 
 ## Principles
 
@@ -240,7 +242,105 @@ Based on user selection:
 
 - **Windows**: Install Wine, Bottles, Proton; configure desktop integration
 - **Android**: Install Waydroid, configure kernel modules
-- **macOS**: Configure QEMU/KVM, OpenCore, SPICE; download Recovery DMG
+- **macOS**: Configure libvirt/QEMU/KVM, OpenCore, SPICE; download Recovery DMG
+
+---
+
+# VM Lifecycle Management
+
+## Suspend / Resume
+
+VMs are suspended via `virsh save` and resumed via `virsh restore`.
+
+```bash
+# Suspend a VM (saves state to disk, frees RAM)
+nextraos-vm suspend windows
+nextraos-vm suspend macos
+
+# Resume a VM (restores from latest save file)
+nextraos-vm resume windows
+nextraos-vm resume macos
+```
+
+Save files are stored in:
+
+```
+~/.local/share/nextraos/vms/<vm>/save/
+```
+
+## Snapshots
+
+```bash
+# Create a snapshot
+nextraos-vm snapshot windows "before-update"
+nextraos-vm snapshot macos "clean-install"
+
+# List snapshots
+nextraos-vm list-snapshots windows
+
+# Restore a snapshot
+nextraos-vm restore-snapshot windows "before-update"
+
+# Delete a snapshot
+nextraos-vm delete-snapshot windows "before-update"
+```
+
+---
+
+# Auto-Suspend Behavior
+
+## Overview
+
+When an application is launched via `nextraos-vm execute`, NextraOS
+tracks the application lifecycle and automatically suspends the VM
+after the application exits and a configurable grace period.
+
+## Configuration
+
+```bash
+# ~/.config/nextraos/vm.conf
+VM_AUTO_SUSPEND=true            # Enable/disable auto-suspend
+VM_SUSPEND_GRACE_PERIOD=30      # Seconds to wait after app exit
+VM_SUSPEND_ON_SYSTEM_SUSPEND=true  # Suspend VMs on systemctl suspend
+```
+
+## Flow
+
+```
+nextraos-vm execute <vm> <app>
+    │
+    ├── VM not running?
+    │   └── Auto-start VM
+    │       └── Wait for agent/SSH ready (polling, not fixed sleep)
+    │
+    ├── Execute app
+    │   ├── Windows: guest-exec via qemu-guest-agent (track PID)
+    │   └── macOS: SSH command (block on exit)
+    │
+    ├── App exits
+    │
+    ├── Grace period (VM_SUSPEND_GRACE_PERIOD seconds)
+    │   └── User can still interact via SPICE during grace period
+    │
+    └── virsh save (suspend, free host RAM)
+```
+
+## Scope
+
+- **Auto-suspend applies to**: apps launched via `nextraos-vm execute`
+- **Auto-suspend does NOT apply to**: apps launched via SPICE
+  (manual desktop interaction)
+- `--no-auto-suspend` flag disables auto-suspend for a single
+  execution
+
+## Agent Ready Detection
+
+Fixed `sleep` delays are replaced with active polling:
+
+- **Windows VM**: Poll `guest-sync` via `qemu-guest-agent`
+- **macOS VM**: Poll SSH connection (`ssh -o ConnectTimeout=1`)
+- Default timeout: 120 seconds
+- Configurable via `VM_READY_TIMEOUT` in vm.conf
 
 ---
 
@@ -340,6 +440,16 @@ sudo apt install spice-gtk
 ---
 
 # Future Improvements
+
+## VM Management
+
+- CPU pinning for dedicated VM cores
+- I/O optimization (virtio-scsi, cache=none, io_uring)
+- Memory balloon driver for dynamic memory adjustment
+- Headless mode for execute-only workloads
+- SPICE on-demand activation
+- Snapshot auto-rotation (configurable max count)
+- Systemd integration for login-time autostart
 
 ## Windows
 

@@ -179,7 +179,7 @@ Limitations:
 
 Implement:
 
-- Direct QEMU/KVM (not Docker)
+- QEMU/KVM via libvirt (same management as Windows VM)
 - OpenCore bootloader
 - SPICE protocol integration
 - spice-vdagent (clipboard, resolution)
@@ -195,7 +195,7 @@ Architecture:
 
     Linux Desktop (KDE Plasma Wayland)
         │
-        └── QEMU/KVM
+        └── libvirt / QEMU/KVM
             ├── OpenCore bootloader
             ├── macOS Recovery DMG
             ├── SPICE display
@@ -207,11 +207,39 @@ Note:
 - Full desktop only (no seamless windows)
 - Experimental status
 - macOS EULA restricts virtualization to Apple hardware
-- Display via SPICE (not VNC)
 
 ---
 
-# Phase 7 — Production Hardening
+# Phase 7 — VM Lifecycle Management
+
+Implement:
+
+- VM suspend/resume (`virsh save` / `virsh restore`)
+- VM snapshots (`virsh snapshot-create-as`)
+- Auto-suspend on application exit (configurable grace period)
+- Agent ready detection (polling instead of fixed sleep)
+- CPU pinning for VM cores
+- I/O optimization (virtio-scsi, cache=none)
+- Memory balloon driver
+- Headless mode for execute-only workloads
+- systemd integration for login-time autostart
+- System suspend hook (auto-suspend VMs on systemctl suspend)
+
+Success criteria:
+
+VMs consume host resources only when actively in use. Applications
+launched via `nextraos-vm execute` auto-suspend after exit.
+
+Configuration:
+
+    # ~/.config/nextraos/vm.conf
+    VM_AUTO_SUSPEND=true
+    VM_SUSPEND_GRACE_PERIOD=30
+    VM_SUSPEND_ON_SYSTEM_SUSPEND=true
+
+---
+
+# Phase 8 — Production Hardening
 
 Improve:
 

@@ -66,23 +66,23 @@ Provides an Android environment inside Linux.
 
 Used when Wine/Proton cannot provide sufficient compatibility.
 
-Possible implementation technologies include:
+Implementation:
 
-- QEMU
-- KVM
-- Docker
-- Podman
-- dockur/windows
+- QEMU/KVM via libvirt
+- `virt-install` for VM creation
+- SPICE for display
+- `qemu-guest-agent` for guest communication
 
 ### macOS VM
 
 Experimental.
 
-Possible technologies include:
+Implementation:
 
-- QEMU
-- KVM
-- dockur/macos
+- QEMU/KVM via libvirt (same management as Windows VM)
+- OpenCore bootloader for non-Apple hardware
+- SPICE for display
+- `virsh save`/`restore` for suspend/resume
 
 Legal and hardware limitations must be respected.
 
@@ -242,6 +242,45 @@ Performance optimization should follow:
 4. fallback VM
 
 Do not sacrifice system stability for theoretical performance.
+
+## 12. VM Lifecycle
+
+VMs should consume host resources only when actively in use.
+
+Lifecycle states:
+
+    running
+        |
+        +--> active (user interacting via SPICE or app executing)
+        |
+        +--> idle (no active app, SPICE connected but idle)
+        |
+        v
+    suspending
+        |
+        +--> virsh save (write state to disk, free RAM)
+        |
+        v
+    suspended
+        |
+        +--> RAM freed, state on disk
+        |
+        +--> resume on demand or on next execute
+
+Auto-suspend policy:
+
+- Apps launched via `nextraos-vm execute` are tracked
+- When the tracked app exits, a configurable grace period begins
+- After the grace period, the VM is auto-suspended via `virsh save`
+- Apps launched via SPICE (manual interaction) are not auto-suspended
+- Systemd integration: VMs auto-suspend on `systemctl suspend`
+
+Resource optimization:
+
+- CPU pinning: dedicate specific host cores to VMs
+- I/O: virtio-scsi with cache=none
+- Memory: balloon driver for dynamic adjustment
+- Display: headless mode for execute-only workloads
 
 ## 12. Distribution Architecture
 
