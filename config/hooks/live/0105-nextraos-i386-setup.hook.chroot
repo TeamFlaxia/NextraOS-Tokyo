@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+
+echo "==> NextraOS: Enabling i386 architecture for Wine"
+
+dpkg --add-architecture i386
+apt-get update
+
+echo "==> NextraOS: i386 architecture enabled"

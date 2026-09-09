@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+EXECUTABLE="$1"
+
+if [ -z "$EXECUTABLE" ]; then
+    echo "Usage: nextraos-exe-handler <file.exe|file.msi>" >&2
+    exit 1
+fi
+
+nextraos-wine-launch "$EXECUTABLE" || nextraos-vm-fallback "$EXECUTABLE"

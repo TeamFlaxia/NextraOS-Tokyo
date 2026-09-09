@@ -1,0 +1,39 @@
+#!/bin/sh
+set -e
+
+EXECUTABLE="$1"
+
+if [ -z "$EXECUTABLE" ]; then
+    echo "Usage: nextraos-vm-fallback <file.exe>" >&2
+    exit 1
+fi
+
+APP_ID=$(echo "$EXECUTABLE" | md5sum | cut -d' ' -f1)
+
+echo "==> Wine failed. Falling back to Windows VM..."
+
+# Ensure VM disk exists
+if [ ! -f "$HOME/.local/share/nextraos/vms/windows/disk.qcow2" ]; then
+    echo "==> Creating VM disk..."
+    nextraos-vm create
+fi
+
+# Download ISO if not present
+if ! ls "$HOME/.local/share/nextraos/vms/windows/"*.iso >/dev/null 2>&1; then
+    echo "==> Downloading Windows ISO..."
+    nextraos-vm download-iso
+fi
+
+# Start VM if not running
+if ! virsh dominfo windows >/dev/null 2>&1; then
+    echo "==> Starting Windows VM..."
+    nextraos-vm start
+    echo "==> Waiting for VM to boot (30s)..."
+    sleep 30
+fi
+
+# Launch application in VM
+echo "==> Launching application in VM..."
+nextraos-vm execute "$EXECUTABLE"
+
+echo "==> Connect via SPICE: spice://localhost:5930"

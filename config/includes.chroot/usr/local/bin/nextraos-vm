@@ -1,0 +1,391 @@
+#!/bin/sh
+set -e
+
+usage() {
+    cat << 'EOF'
+Usage: nextraos-vm <action> [vm-name]
+
+Actions:
+  start <windows|macos>    Start VM
+  stop <windows|macos>     Stop VM
+  status [windows|macos]   Show VM status
+  list                     List all VMs
+  create <windows|macos>   Create VM disk
+  download-iso <windows|macos>  Download OS installer
+  execute <windows|macos> <app>  Execute application in VM
+
+Examples:
+  nextraos-vm create windows
+  nextraos-vm download-iso macos
+  nextraos-vm start windows
+  nextraos-vm execute windows "C:\Program Files\App\app.exe"
+EOF
+    exit 1
+}
+
+# --- Resource auto-adjustment ---
+get_vm_resources() {
+    HOST_RAM_KB=$(awk '/^MemTotal:/{print $2}' /proc/meminfo)
+
+    if [ "$HOST_RAM_KB" -ge 32768000 ]; then
+        echo "8192 4"
+    elif [ "$HOST_RAM_KB" -ge 16384000 ]; then
+        echo "4096 2"
+    else
+        echo "2048 2"
+    fi
+}
+
+# --- Windows VM ---
+VM_WIN_NAME="windows"
+VM_WIN_DIR="$HOME/.local/share/nextraos/vms/windows"
+VM_WIN_DISK="$VM_WIN_DIR/disk.qcow2"
+VM_WIN_SPICE="5930"
+
+cmd_windows_create() {
+    mkdir -p "$VM_WIN_DIR"
+    if [ -f "$VM_WIN_DISK" ]; then
+        echo "==> Windows VM disk already exists: $VM_WIN_DISK"
+        return 0
+    fi
+    echo "==> Creating Windows VM disk (128GB, expandable)"
+    qemu-img create -f qcow2 "$VM_WIN_DISK" 128G
+    echo "==> Disk created: $VM_WIN_DISK"
+}
+
+cmd_windows_download_iso() {
+    mkdir -p "$VM_WIN_DIR"
+    ISO_FILE="$VM_WIN_DIR/windows.iso"
+    if [ -f "$ISO_FILE" ]; then
+        echo "==> Windows ISO already exists: $ISO_FILE"
+        return 0
+    fi
+    echo "==> Downloading Windows 11 ISO from Microsoft..."
+    curl -L -o "$ISO_FILE" \
+        "https://software-download.microsoft.com/download/sg/17763.5576.231006-0600.23H2_RELEASE_SVC_PROD2_CLIENT64EN-US_JPEG.iso" || {
+        echo "==> Download failed. Place a Windows ISO manually in: $VM_WIN_DIR/"
+        exit 1
+    }
+    echo "==> ISO downloaded: $ISO_FILE"
+}
+
+cmd_windows_start() {
+    mkdir -p "$VM_WIN_DIR"
+    if [ ! -f "$VM_WIN_DISK" ]; then
+        echo "==> VM disk not found. Run: nextraos-vm create windows"
+        exit 1
+    fi
+    if virsh dominfo "$VM_WIN_NAME" >/dev/null 2>&1; then
+        echo "==> Windows VM is already running"
+        virsh dominfo "$VM_WIN_NAME"
+        return 0
+    fi
+    ISO_FILE=$(find "$VM_WIN_DIR" -name "*.iso" -type f 2>/dev/null | head -1)
+    if [ -z "$ISO_FILE" ]; then
+        echo "==> No Windows ISO found. Run: nextraos-vm download-iso windows"
+        exit 1
+    fi
+    read -r VM_RAM VM_CPUS <<< "$(get_vm_resources)"
+    echo "==> Starting Windows VM (RAM: ${VM_RAM}MB, CPUs: $VM_CPUS)"
+    virt-install \
+        --name "$VM_WIN_NAME" \
+        --ram "$VM_RAM" \
+        --vcpus "$VM_CPUS" \
+        --disk path="$VM_WIN_DISK",format=qcow2,bus=virtio \
+        --os-variant win11 \
+        --network model=virtio \
+        --graphics spice,listen=0.0.0.0,port="$VM_WIN_SPICE" \
+        --video qxl \
+        --cdrom "$ISO_FILE" \
+        --boot uefi \
+        --cpu host-passthrough \
+        --features hyperv.relaxed=on,hyperv.vapic=on,hyperv.spinlocks=on \
+        --noautoconsole 2>/dev/null
+    echo "==> Windows VM started. SPICE: spice://localhost:$VM_WIN_SPICE"
+}
+
+cmd_windows_stop() {
+    if ! virsh dominfo "$VM_WIN_NAME" >/dev/null 2>&1; then
+        echo "==> Windows VM is not running"
+        return 0
+    fi
+    echo "==> Stopping Windows VM"
+    virsh shutdown "$VM_WIN_NAME" 2>/dev/null || true
+    TIMEOUT=30; ELAPSED=0
+    while virsh dominfo "$VM_WIN_NAME" >/dev/null 2>&1; do
+        sleep 1; ELAPSED=$((ELAPSED + 1))
+        [ "$ELAPSED" -ge "$TIMEOUT" ] && virsh destroy "$VM_WIN_NAME" 2>/dev/null || true
+    done
+    echo "==> Windows VM stopped"
+}
+
+cmd_windows_status() {
+    if virsh dominfo "$VM_WIN_NAME" >/dev/null 2>&1; then
+        echo "==> Windows VM is running"
+        virsh dominfo "$VM_WIN_NAME"
+    else
+        echo "==> Windows VM is not running"
+    fi
+}
+
+cmd_windows_execute() {
+    APP="$1"
+    if [ -z "$APP" ]; then
+        echo "Usage: nextraos-vm execute windows <app.exe>" >&2
+        exit 1
+    fi
+    if ! virsh dominfo "$VM_WIN_NAME" >/dev/null 2>&1; then
+        echo "==> Windows VM is not running. Starting..."
+        cmd_windows_start
+        echo "==> Waiting for VM to boot..."
+        sleep 30
+    fi
+    virsh qemu-agent-command "$VM_WIN_NAME" \
+        "{\"execute\":\"guest-exec\",\"arguments\":{\"path\":\"cmd.exe\",\"arg\":[\"/c\",\"$APP\"],\"capture-output\":true}}" \
+        2>/dev/null || {
+        echo "==> Could not execute via agent. Connect via SPICE: spice://localhost:$VM_WIN_SPICE"
+    }
+}
+
+# --- macOS VM ---
+VM_MAC_NAME="macos"
+VM_MAC_DIR="$HOME/.local/share/nextraos/vms/macos"
+VM_MAC_DISK="$VM_MAC_DIR/macos.qcow2"
+VM_MAC_SPICE="5931"
+VM_MAC_OC="$VM_MAC_DIR/OpenCore.qcow2"
+OVMF_DIR="/usr/share/OVMF"
+
+cmd_macos_create() {
+    mkdir -p "$VM_MAC_DIR"
+    if [ -f "$VM_MAC_DISK" ]; then
+        echo "==> macOS VM disk already exists: $VM_MAC_DISK"
+        return 0
+    fi
+    echo "==> Creating macOS VM disk (256GB, expandable)"
+    qemu-img create -f qcow2 "$VM_MAC_DISK" 256G
+
+    # Create OpenCore disk if not present
+    if [ ! -f "$VM_MAC_OC" ]; then
+        echo "==> Creating OpenCore boot disk"
+        qemu-img create -f qcow2 "$VM_MAC_OC" 200M
+    fi
+    echo "==> macOS disks created"
+}
+
+cmd_macos_download_iso() {
+    mkdir -p "$VM_MAC_DIR"
+    if [ -f "$VM_MAC_DIR/BaseSystem.img" ]; then
+        echo "==> macOS Recovery image already exists"
+        return 0
+    fi
+    echo "==> Downloading macOS Recovery image..."
+    echo "    This uses Apple's public CDN for recovery images."
+
+    # Use OSX-KVM's fetch script if available, otherwise direct download
+    if command -v python3 >/dev/null 2>&1; then
+        cd "$VM_MAC_DIR"
+        python3 -c "
+import urllib.request, plistlib, sys
+
+# macOS Sonoma recovery info
+url = 'https://osrecovery.apple.com/Info.plist?version=14&build=23A344&bank=progress&assets=2'
+try:
+    resp = urllib.request.urlopen(url)
+    data = plistlib.loads(resp.read())
+    print('==> Recovery info loaded')
+except Exception as e:
+    print(f'==> Direct download failed: {e}')
+    print('==> Please download macOS Recovery manually or use OSX-KVM project')
+    sys.exit(1)
+" 2>/dev/null || true
+    fi
+
+    echo "==> For full macOS installation:"
+    echo "    1. Clone OSX-KVM: git clone https://github.com/kholia/OSX-KVM.git"
+    echo "    2. Run: ./fetch-macOS-v2.py"
+    echo "    3. Convert: dmg2img -i BaseSystem.dmg BaseSystem.img"
+    echo "    4. Place BaseSystem.img in: $VM_MAC_DIR/"
+}
+
+cmd_macos_start() {
+    mkdir -p "$VM_MAC_DIR"
+
+    # Check for OpenCore
+    if [ ! -f "$VM_MAC_OC" ]; then
+        echo "==> OpenCore disk not found. Run: nextraos-vm create macos"
+        exit 1
+    fi
+
+    # Check for macOS disk
+    if [ ! -f "$VM_MAC_DISK" ]; then
+        echo "==> macOS disk not found. Run: nextraos-vm create macos"
+        exit 1
+    fi
+
+    if virsh dominfo "$VM_MAC_NAME" >/dev/null 2>&1; then
+        echo "==> macOS VM is already running"
+        virsh dominfo "$VM_MAC_NAME"
+        return 0
+    fi
+
+    # Check for OVMF
+    OVMF_CODE="$OVMF_DIR/OVMF_CODE_4M.fd"
+    OVMF_VARS="$OVMF_DIR/OVMF_VARS_4M.fd"
+    if [ ! -f "$OVMF_CODE" ]; then
+        OVMF_CODE="$OVMF_DIR/OVMF.fd"
+        OVMF_VARS="$OVMF_DIR/OVMF_VARS.fd"
+    fi
+    if [ ! -f "$OVMF_CODE" ]; then
+        echo "==> OVMF firmware not found. Install ovmf package."
+        exit 1
+    fi
+
+    # Check AVX2 for macOS 13+
+    if ! grep -q 'avx2' /proc/cpuinfo; then
+        echo "==> WARNING: CPU does not support AVX2"
+        echo "    macOS Ventura (13) and later require AVX2"
+        echo "    Use macOS Monterey (12) or earlier"
+    fi
+
+    read -r VM_RAM VM_CPUS <<< "$(get_vm_resources)"
+    # macOS needs more RAM
+    [ "$VM_RAM" -lt 4096 ] && VM_RAM=4096
+
+    echo "==> Starting macOS VM (RAM: ${VM_RAM}MB, CPUs: $VM_CPUS)"
+
+    # Copy OVMF_VARS for writable variables
+    cp -n "$OVMF_VARS" "$VM_MAC_DIR/OVMF_VARS.fd" 2>/dev/null || true
+
+    qemu-system-x86_64 \
+        -name "NextraOS-macOS" \
+        -enable-kvm \
+        -m "$VM_RAM" \
+        -cpu Penryn,kvm=on,vendor=GenuineIntel,+invtsc,vmware-cpuid-freq=on,+ssse3,+sse4.2,+popcnt,+avx,+avx2,+aes,+xsave,+xsaveopt \
+        -machine q35,accel=kvm \
+        -smp "$VM_CPUS",cores=$((VM_CPUS/2)),sockets=1,threads=2 \
+        -drive if=pflash,format=raw,readonly=on,file="$OVMF_CODE" \
+        -drive if=pflash,format=raw,file="$VM_MAC_DIR/OVMF_VARS.fd" \
+        -device isa-applesmc,osk="ourhardworkbythesewordsguardedpleasedontsteal(c)AppleComputerInc" \
+        -smbios type=2 \
+        -device qemu-xhci,id=xhci \
+        -device usb-kbd,bus=xhci.0 \
+        -device usb-tablet,bus=xhci.0 \
+        -device ich9-intel-hda -device hda-duplex \
+        -device ich9-ahci,id=sata \
+        -drive id=OpenCoreBoot,if=none,format=qcow2,file="$VM_MAC_OC" \
+        -device ide-hd,bus=sata.2,drive=OpenCoreBoot,bootindex=1 \
+        -drive id=MacHDD,if=none,format=qcow2,file="$VM_MAC_DISK" \
+        -device ide-hd,bus=sata.4,drive=MacHDD,bootindex=2 \
+        -netdev user,id=net0,hostfwd=tcp::2222-:22 \
+        -device virtio-net-pci,netdev=net0 \
+        -device virtio-vga \
+        -spice port="$VM_MAC_SPICE",disable-ticketing=on \
+        -display gtk,gl=on \
+        -monitor stdio \
+        -pidfile "$VM_MAC_DIR/qemu.pid" \
+        &
+
+    echo "==> macOS VM started. SPICE: spice://localhost:$VM_MAC_SPICE"
+}
+
+cmd_macos_stop() {
+    if ! virsh dominfo "$VM_MAC_NAME" >/dev/null 2>&1; then
+        # Try killing QEMU process directly
+        if [ -f "$VM_MAC_DIR/qemu.pid" ]; then
+            PID=$(cat "$VM_MAC_DIR/qemu.pid")
+            if kill -0 "$PID" 2>/dev/null; then
+                echo "==> Stopping macOS VM (PID: $PID)"
+                kill "$PID"
+                sleep 5
+                kill -9 "$PID" 2>/dev/null || true
+            fi
+            rm -f "$VM_MAC_DIR/qemu.pid"
+        fi
+        echo "==> macOS VM is not running"
+        return 0
+    fi
+    echo "==> Stopping macOS VM"
+    virsh shutdown "$VM_MAC_NAME" 2>/dev/null || true
+    echo "==> macOS VM stopped"
+}
+
+cmd_macos_status() {
+    if [ -f "$VM_MAC_DIR/qemu.pid" ]; then
+        PID=$(cat "$VM_MAC_DIR/qemu.pid")
+        if kill -0 "$PID" 2>/dev/null; then
+            echo "==> macOS VM is running (PID: $PID)"
+            return 0
+        fi
+    fi
+    echo "==> macOS VM is not running"
+}
+
+cmd_macos_execute() {
+    APP="$1"
+    if [ -z "$APP" ]; then
+        echo "Usage: nextraos-vm execute macos <app>" >&2
+        exit 1
+    fi
+    if ! cmd_macos_status >/dev/null 2>&1; then
+        echo "==> macOS VM is not running. Starting..."
+        cmd_macos_start
+        echo "==> Waiting for VM to boot..."
+        sleep 60
+    fi
+    echo "==> Executing in macOS VM: $APP"
+    ssh -p 2222 -o StrictHostKeyChecking=no user@localhost "$APP" 2>/dev/null || {
+        echo "==> Could not execute via SSH. Connect via SPICE: spice://localhost:$VM_MAC_SPICE"
+    }
+}
+
+# --- Main dispatch ---
+ACTION="${1:-}"
+TARGET="${2:-}"
+
+case "$ACTION" in
+    start)
+        case "$TARGET" in
+            windows) cmd_windows_start ;;
+            macos)   cmd_macos_start ;;
+            *)       echo "Specify: windows or macos"; usage ;;
+        esac ;;
+    stop)
+        case "$TARGET" in
+            windows) cmd_windows_stop ;;
+            macos)   cmd_macos_stop ;;
+            *)       echo "Specify: windows or macos"; usage ;;
+        esac ;;
+    status)
+        case "$TARGET" in
+            windows) cmd_windows_status ;;
+            macos)   cmd_macos_status ;;
+            "")      cmd_windows_status; cmd_macos_status ;;
+            *)       echo "Specify: windows or macos"; usage ;;
+        esac ;;
+    list)
+        echo "==> VMs:"
+        virsh list --all 2>/dev/null || true
+        [ -f "$VM_MAC_DIR/qemu.pid" ] && echo "  macos (QEMU direct)"
+        ;;
+    create)
+        case "$TARGET" in
+            windows) cmd_windows_create ;;
+            macos)   cmd_macos_create ;;
+            *)       echo "Specify: windows or macos"; usage ;;
+        esac ;;
+    download-iso)
+        case "$TARGET" in
+            windows) cmd_windows_download_iso ;;
+            macos)   cmd_macos_download_iso ;;
+            *)       echo "Specify: windows or macos"; usage ;;
+        esac ;;
+    execute)
+        VM_TARGET="${2:-}"
+        APP="${3:-}"
+        case "$VM_TARGET" in
+            windows) cmd_windows_execute "$APP" ;;
+            macos)   cmd_macos_execute "$APP" ;;
+            *)       echo "Specify: windows or macos"; usage ;;
+        esac ;;
+    *) usage ;;
+esac

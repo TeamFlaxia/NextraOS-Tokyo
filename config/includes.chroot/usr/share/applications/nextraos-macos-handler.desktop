@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=NextraOS macOS App Launcher
+Exec=nextraos-macos-handler %f
+Type=Application
+Terminal=false
+MimeType=application/x-mac-application;
+Icon=applications-system
+NoDisplay=true

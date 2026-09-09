@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=NextraOS Windows App Launcher
+Exec=nextraos-exe-handler %f
+Type=Application
+Terminal=false
+MimeType=application/x-ms-dos-executable;application/x-msi;application/vnd.microsoft.portable-executable;
+Icon=windows-app
+NoDisplay=true

@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+
+EXECUTABLE="$1"
+
+if [ -z "$EXECUTABLE" ]; then
+    echo "Usage: nextraos-macos-handler <file.app>" >&2
+    exit 1
+fi
+
+# Check if macOS VM is available
+if ! nextraos-vm status macos >/dev/null 2>&1; then
+    echo "==> macOS VM is not available"
+    echo "    Run: nextraos-vm create macos"
+    echo "    Then: nextraos-vm download-iso macos"
+    echo "    Then: nextraos-vm start macos"
+    exit 1
+fi
+
+# Launch in macOS VM
+nextraos-vm execute macos "open $EXECUTABLE"

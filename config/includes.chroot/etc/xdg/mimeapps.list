@@ -1,0 +1,5 @@
+[Default Applications]
+application/x-ms-dos-executable=nextraos-exe-handler.desktop
+application/x-msi=nextraos-exe-handler.desktop
+application/vnd.microsoft.portable-executable=nextraos-exe-handler.desktop
+application/x-mac-application=nextraos-macos-handler.desktop
