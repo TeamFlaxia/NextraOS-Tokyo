@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=NextraOS Installer
+GenericName=System Installer
+Comment=Install NextraOS to your system
+Exec=/usr/bin/calamares
+Icon=nextraos-logo
+Terminal=false
+Categories=System;
+Keywords=install;system;installer;

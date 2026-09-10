@@ -1,0 +1,28 @@
+#!/bin/sh
+set -e
+
+# NextraOS Calamares Setup Hook
+# Configures Calamares autostart for the live environment
+
+# Create system-wide autostart for Calamares
+# This works for the live user and any installed user
+mkdir -p /etc/xdg/autostart
+cat > /etc/xdg/autostart/calamares.desktop << 'EOF'
+[Desktop Entry]
+Type=Application
+Name=NextraOS Installer
+Comment=Install NextraOS to your system
+Exec=/usr/bin/calamares
+Icon=nextraos-logo
+Terminal=false
+NoDisplay=false
+Categories=System;
+EOF
+
+# Create sudoers entry for live user
+cat > /etc/sudoers.d/calamares << 'EOF'
+user ALL=(ALL) NOPASSWD: /usr/bin/calamares
+EOF
+chmod 440 /etc/sudoers.d/calamares
+
+echo "NextraOS Calamares setup complete"

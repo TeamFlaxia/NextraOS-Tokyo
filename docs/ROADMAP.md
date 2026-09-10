@@ -70,20 +70,22 @@ display (VNC viewer, Spice, or local display).
 
 # Phase 2 — Installer
 
+Status: In Progress
+
 Implement:
 
 - Calamares-based GUI installer
-- welcome screen
-- user creation
-- language
-- keyboard
-- timezone
-- hardware detection
-- network detection
-- ecosystem selection (packagechooserq)
+- welcome screen ✅
+- user creation ✅
+- language ✅
+- keyboard ✅
+- timezone ✅
+- hardware detection ✅
+- network detection ✅
+- ecosystem selection (packagechooserq) ✅
 - starter applications
-- disk selection
-- installation
+- disk selection ✅
+- installation ✅
 
 Success criteria:
 

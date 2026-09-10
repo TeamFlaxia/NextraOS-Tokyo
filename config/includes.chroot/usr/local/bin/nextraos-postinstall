@@ -1,0 +1,60 @@
+#!/bin/bash
+# NextraOS Post-Install Script
+# Called by Calamares after installation completes
+set -e
+
+LOG_FILE="/var/log/nextraos-postinstall.log"
+SELECTED_APPS="${1:-linux}"
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
+}
+
+log "NextraOS post-install starting"
+log "Selected apps: $SELECTED_APPS"
+
+# Function to check if component is selected
+has_component() {
+    echo "$SELECTED_APPS" | grep -q "$1"
+}
+
+# 1. Flatpak setup
+if has_component "flatpak"; then
+    log "Setting up Flatpak..."
+    flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
+    log "Flatpak setup complete"
+fi
+
+# 2. Waydroid setup (Android)
+if has_component "android"; then
+    log "Setting up Waydroid..."
+    if command -v waydroid &>/dev/null; then
+        waydroid init 2>/dev/null || log "Waydroid init failed (may need manual setup)"
+        log "Waydroid setup complete"
+    else
+        log "Waydroid not installed, skipping"
+    fi
+fi
+
+# 3. Windows VM setup
+if has_component "windows"; then
+    log "Setting up Windows VM support..."
+    systemctl enable libvirtd 2>/dev/null || true
+    usermod -aG libvirt "$SUDO_USER" 2>/dev/null || true
+    log "Windows VM setup complete"
+fi
+
+# 4. macOS VM setup (Experimental)
+if has_component "macos"; then
+    log "Setting up macOS VM support (experimental)..."
+    systemctl enable libvirtd 2>/dev/null || true
+    usermod -aG libvirt "$SUDO_USER" 2>/dev/null || true
+    log "macOS VM setup complete"
+fi
+
+# 5. Enable NextraOS services
+log "Enabling NextraOS services..."
+systemctl enable nextraos-vm.target 2>/dev/null || true
+
+log "NextraOS post-install complete"
+exit 0

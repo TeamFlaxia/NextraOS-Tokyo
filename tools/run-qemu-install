@@ -1,0 +1,57 @@
+#!/bin/sh
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+DIST_DIR="$PROJECT_DIR/dist"
+ISO_NAME="nextraos-live-amd64.iso"
+DISK_NAME="nextraos-test.qcow2"
+DISK_SIZE="32G"
+
+ISO_FILE="${1:-$DIST_DIR/$ISO_NAME}"
+
+if [ ! -f "$ISO_FILE" ]; then
+    echo "ERROR: ISO not found: $ISO_FILE"
+    echo "Build it first with: ./build/build-iso"
+    exit 1
+fi
+
+# Create test disk if it doesn't exist
+DISK_FILE="$DIST_DIR/$DISK_NAME"
+if [ ! -f "$DISK_FILE" ]; then
+    echo "==> Creating test disk: $DISK_FILE ($DISK_SIZE)"
+    qemu-img create -f qcow2 "$DISK_FILE" "$DISK_SIZE"
+fi
+
+OVMF_CODE="/usr/share/OVMF/OVMF_CODE_4M.fd"
+OVMF_VARS="/usr/share/OVMF/OVMF_VARS_4M.fd"
+
+if [ ! -f "$OVMF_CODE" ]; then
+    echo "WARNING: OVMF not found at $OVMF_CODE"
+    echo "Falling back to BIOS boot..."
+    exec "$0" --bios "$@"
+fi
+
+echo "==> NextraOS QEMU Install Test (UEFI)"
+echo "    ISO:  $ISO_FILE"
+echo "    Disk: $DISK_FILE"
+echo ""
+
+exec qemu-system-x86_64 \
+    -name "NextraOS Install" \
+    -m 8G \
+    -smp 4 \
+    -enable-kvm \
+    -cpu host \
+    -drive if=pflash,format=raw,readonly=on,file="$OVMF_CODE" \
+    -drive if=pflash,format=raw,file="$OVMF_VARS" \
+    -drive file="$ISO_FILE",format=raw,media=cdrom \
+    -drive file="$DISK_FILE",format=qcow2,if=virtio \
+    -device virtio-vga-gl \
+    -display sdl,gl=on \
+    -device qemu-xhci \
+    -device usb-tablet \
+    -device usb-kbd \
+    -netdev user,id=net0,hostfwd=tcp::2222-:22 \
+    -device virtio-net-pci,netdev=net0 \
+    "$@"

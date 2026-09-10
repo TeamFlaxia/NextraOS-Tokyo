@@ -11,8 +11,7 @@ lb config noauto \
     --archive-areas "main contrib non-free non-free-firmware" \
     --bootloaders "grub-efi" \
     --uefi-secure-boot auto \
-    --debian-installer live \
-    --debian-installer-gui true \
+    --debian-installer none \
     --firmware-chroot true \
     --apt-recommends true \
     --apt-indices true \

@@ -1,0 +1,39 @@
+---
+componentName:   nextraos
+welcomeStyleCalamares: true
+welcomeExpandingLogo: true
+windowExpanding: normal
+windowSize: 800px,580px
+windowPlacement: center
+
+strings:
+    productName:         NextraOS
+    shortProductName:    NextraOS
+    version:             1.0
+    shortVersion:        1.0
+    versionedName:       NextraOS 1.0
+    shortVersionedName:  NextraOS 1.0
+    bootloaderEntryName: NextraOS
+    productUrl:          https://github.com/nextraos/nextraos
+    supportUrl:          https://github.com/nextraos/nextraos/issues
+    knownIssuesUrl:      https://github.com/nextraos/nextraos/issues
+    releaseNotesUrl:     https://github.com/nextraos/nextraos/releases
+    donateUrl:           https://github.com/nextraos/nextraos
+
+sidebar: widget
+navigation: widget
+
+images:
+    productLogo:         "nextraos-logo.png"
+    productIcon:         "nextraos-logo.png"
+    productWelcome:      "welcome.png"
+
+slideshow:               "show.qml"
+
+style:
+   SidebarBackground:    "#1a1a2e"
+   SidebarText:          "#FFFFFF"
+   SidebarTextCurrent:   "#0bd1f4"
+   SidebarBackgroundCurrent: "#16213e"
+
+slideshowAPI: 2
