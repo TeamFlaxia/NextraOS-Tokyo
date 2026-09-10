@@ -9,6 +9,8 @@ load_config() {
     VM_SUSPEND_ON_SYSTEM_SUSPEND="${VM_SUSPEND_ON_SYSTEM_SUSPEND:-true}"
     VM_READY_TIMEOUT="${VM_READY_TIMEOUT:-120}"
     VM_HUGEPAGES="${VM_HUGEPAGES:-false}"
+    VM_SAVE_MAX_AGE_DAYS="${VM_SAVE_MAX_AGE_DAYS:-7}"
+    VM_SNAPSHOT_MAX_COUNT="${VM_SNAPSHOT_MAX_COUNT:-10}"
     if [ -f "$CONF_FILE" ]; then
         # shellcheck source=/dev/null
         . "$CONF_FILE"
@@ -108,6 +110,60 @@ wait_for_ssh_ready() {
 # --- Suspend helpers ---
 VM_BASE_DIR="$HOME/.local/share/nextraos/vms"
 
+# Auto-resume from saved state if available
+cmd_vm_auto_resume() {
+    local VM_NAME="$1"
+    local SAVE_DIR="$VM_BASE_DIR/$VM_NAME/save"
+    local SAVE_FILE
+
+    SAVE_FILE=$(ls -t "$SAVE_DIR"/*.sav 2>/dev/null | head -1)
+    if [ -z "$SAVE_FILE" ]; then
+        return 1
+    fi
+
+    echo "==> Resuming $VM_NAME from saved state: $SAVE_FILE"
+    virsh restore "$SAVE_FILE" >/dev/null 2>&1 || {
+        echo "==> Resume failed"
+        return 1
+    }
+    echo "==> $VM_NAME resumed from saved state"
+    return 0
+}
+
+# Cleanup old save files
+cleanup_old_saves() {
+    local VM_NAME="$1"
+    local MAX_AGE="${VM_SAVE_MAX_AGE_DAYS:-7}"
+    local SAVE_DIR="$VM_BASE_DIR/$VM_NAME/save"
+
+    if [ ! -d "$SAVE_DIR" ]; then
+        return 0
+    fi
+
+    local DELETED
+    DELETED=$(find "$SAVE_DIR" -name "*.sav" -mtime "+$MAX_AGE" -delete -print 2>/dev/null | wc -l)
+    if [ "$DELETED" -gt 0 ]; then
+        echo "==> Cleaned up $DELETED old save file(s) for $VM_NAME"
+    fi
+}
+
+# Rotate snapshots if over limit
+rotate_snapshots() {
+    local VM_NAME="$1"
+    local MAX_COUNT="${VM_SNAPSHOT_MAX_COUNT:-10}"
+
+    local SNAP_COUNT
+    SNAP_COUNT=$(virsh snapshot-list "$VM_NAME" --name 2>/dev/null | wc -l)
+    if [ "$SNAP_COUNT" -ge "$MAX_COUNT" ]; then
+        local OLDEST
+        OLDEST=$(virsh snapshot-list "$VM_NAME" --name 2>/dev/null | head -1)
+        if [ -n "$OLDEST" ]; then
+            echo "==> Rotating snapshots: removing '$OLDEST' (limit: $MAX_COUNT)"
+            virsh snapshot-delete "$VM_NAME" "$OLDEST" >/dev/null 2>&1 || true
+        fi
+    fi
+}
+
 cmd_vm_suspend() {
     local VM_NAME="$1"
     local SAVE_DIR="$VM_BASE_DIR/$VM_NAME/save"
@@ -118,6 +174,7 @@ cmd_vm_suspend() {
         return 1
     fi
 
+    cleanup_old_saves "$VM_NAME"
     local SAVE_FILE="$SAVE_DIR/suspend-$(date +%Y%m%d-%H%M%S).sav"
     echo "==> Suspending $VM_NAME..."
     virsh save "$VM_NAME" "$SAVE_FILE" >/dev/null 2>&1
@@ -150,6 +207,7 @@ cmd_vm_snapshot() {
         return 1
     fi
 
+    rotate_snapshots "$VM_NAME"
     echo "==> Creating snapshot '$SNAP_NAME' for $VM_NAME"
     virsh snapshot-create-as "$VM_NAME" "$SNAP_NAME" "" \
         --atomic >/dev/null 2>&1
@@ -355,10 +413,13 @@ cmd_windows_execute() {
         exit 1
     fi
 
-    # Auto-start if not running
+    # Auto-resume or start if not running
     if ! virsh dominfo "$VM_WIN_NAME" >/dev/null 2>&1; then
-        echo "==> Windows VM is not running. Starting..."
-        cmd_windows_start
+        cleanup_old_saves "$VM_WIN_NAME"
+        if ! cmd_vm_auto_resume "$VM_WIN_NAME"; then
+            echo "==> Windows VM is not running. Starting fresh..."
+            cmd_windows_start
+        fi
         wait_for_agent_ready "$VM_WIN_NAME"
     fi
 
@@ -391,6 +452,7 @@ cmd_windows_execute() {
                     GRACE="${VM_SUSPEND_GRACE_PERIOD:-30}"
                     echo "==> App exited. Waiting ${GRACE}s before suspend..."
                     sleep "$GRACE"
+                    cleanup_old_saves "$VM_WIN_NAME"
                     virsh save "$VM_WIN_NAME" \
                         "$VM_BASE_DIR/windows/save/auto-suspend-$(date +%Y%m%d-%H%M%S).sav" \
                         >/dev/null 2>&1 && \
@@ -554,10 +616,13 @@ cmd_macos_execute() {
         exit 1
     fi
 
-    # Auto-start if not running
+    # Auto-resume or start if not running
     if ! virsh dominfo "$VM_MAC_NAME" >/dev/null 2>&1; then
-        echo "==> macOS VM is not running. Starting..."
-        cmd_macos_start
+        cleanup_old_saves "$VM_MAC_NAME"
+        if ! cmd_vm_auto_resume "$VM_MAC_NAME"; then
+            echo "==> macOS VM is not running. Starting fresh..."
+            cmd_macos_start
+        fi
         wait_for_ssh_ready
     fi
 
@@ -571,6 +636,7 @@ cmd_macos_execute() {
         GRACE="${VM_SUSPEND_GRACE_PERIOD:-30}"
         echo "==> App exited (code: $EXIT_CODE). Waiting ${GRACE}s before suspend..."
         sleep "$GRACE"
+        cleanup_old_saves "$VM_MAC_NAME"
         virsh save "$VM_MAC_NAME" \
             "$VM_BASE_DIR/macos/save/auto-suspend-$(date +%Y%m%d-%H%M%S).sav" \
             >/dev/null 2>&1 && \

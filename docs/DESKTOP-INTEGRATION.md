@@ -295,23 +295,21 @@ When an application is launched via `nextraos-vm execute`, NextraOS
 tracks the application lifecycle and automatically suspends the VM
 after the application exits and a configurable grace period.
 
-## Configuration
+## Automatic Lifecycle
 
-```bash
-# ~/.config/nextraos/vm.conf
-VM_AUTO_SUSPEND=true            # Enable/disable auto-suspend
-VM_SUSPEND_GRACE_PERIOD=30      # Seconds to wait after app exit
-VM_SUSPEND_ON_SYSTEM_SUSPEND=true  # Suspend VMs on systemctl suspend
-```
-
-## Flow
+The VM lifecycle is fully automatic:
 
 ```
 nextraos-vm execute <vm> <app>
     │
+    ├── VM running?
+    │   └── Yes → Execute app
+    │
     ├── VM not running?
-    │   └── Auto-start VM
-    │       └── Wait for agent/SSH ready (polling, not fixed sleep)
+    │   ├── Saved state exists? → Resume from saved state
+    │   └── No saved state → Start fresh
+    │
+    ├── Wait for agent/SSH ready
     │
     ├── Execute app
     │   ├── Windows: guest-exec via qemu-guest-agent (track PID)
@@ -320,9 +318,19 @@ nextraos-vm execute <vm> <app>
     ├── App exits
     │
     ├── Grace period (VM_SUSPEND_GRACE_PERIOD seconds)
-    │   └── User can still interact via SPICE during grace period
     │
-    └── virsh save (suspend, free host RAM)
+    └── Cleanup old saves → Auto-suspend (virsh save)
+```
+
+## Configuration
+
+```bash
+# ~/.config/nextraos/vm.conf
+VM_AUTO_SUSPEND=true            # Enable/disable auto-suspend
+VM_SUSPEND_GRACE_PERIOD=30      # Seconds to wait after app exit
+VM_SUSPEND_ON_SYSTEM_SUSPEND=true  # Suspend VMs on systemctl suspend
+VM_SAVE_MAX_AGE_DAYS=7          # Auto-delete save files older than this
+VM_SNAPSHOT_MAX_COUNT=10        # Max snapshots per VM (auto-rotate)
 ```
 
 ## Scope
@@ -381,9 +389,13 @@ When enabled:
 
 ```bash
 # ~/.config/nextraos/vm.conf
-VM_HUGEPAGES=false           # Enable hugepages (default: false)
-VM_AUTO_SUSPEND=true         # Auto-suspend on app exit
-VM_SUSPEND_GRACE_PERIOD=30   # Seconds before auto-suspend
+VM_HUGEPAGES=false              # Enable hugepages (default: false)
+VM_AUTO_SUSPEND=true            # Auto-suspend on app exit
+VM_SUSPEND_GRACE_PERIOD=30      # Seconds before auto-suspend
+VM_SAVE_MAX_AGE_DAYS=7          # Auto-delete save files older than this
+VM_SNAPSHOT_MAX_COUNT=10        # Max snapshots per VM (auto-rotate)
+VM_READY_TIMEOUT=120            # Agent/SSH ready timeout
+```
 VM_READY_TIMEOUT=120         # Agent/SSH ready timeout
 ```
 
@@ -491,7 +503,6 @@ sudo apt install spice-gtk
 - CPU pinning for dedicated VM cores
 - Headless mode for execute-only workloads
 - SPICE on-demand activation
-- Snapshot auto-rotation (configurable max count)
 
 ## Windows
 
