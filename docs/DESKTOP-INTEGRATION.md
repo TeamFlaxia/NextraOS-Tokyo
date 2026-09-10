@@ -67,6 +67,87 @@ Display protocol for Windows VM.
 - Requires significant RAM (4-8 GB for VM)
 - Resource optimization via balloon driver, CPU pinning
 
+## SynWin Mode (Experimental)
+
+SynWin mode allows running the same Windows installation on both
+bare metal (dual-boot) and in a VM under Linux.
+
+### Architecture
+
+```
+Bare Metal Boot                    VM Boot (under Linux)
+    │                                   │
+    └─ Windows boots directly           └─ synwin_prep creates synthetic disk
+       on hardware                         │
+                                           ├─ Maps ESP, MSR, Windows partitions
+                                           ├─ Copies preamble (MBR+GPT)
+                                           └─ Creates network bridge
+                                               │
+                                               └─ QEMU/KVM boots Windows
+                                                  from synthetic disk
+```
+
+### Components
+
+#### Synthetic Disk
+
+Linux device mapper creates a "synthetic disk" that maps real
+Windows partitions:
+
+- **ESP** (EFI System Partition) - mapped read/write
+- **MSR** (Microsoft Reserved) - mapped read/write
+- **Windows** - mapped read/write
+- **Preamble** (MBR+GPT) - copied to image file
+
+#### Hardware Spoofing
+
+Windows uses hardware attributes for license activation. SynWin
+spoofs these to match bare metal:
+
+- PC make, model, serial number
+- Mainboard make, model, serial number
+- Hard disk serial number
+
+#### Network Bridge
+
+TAP device bridges Windows VM to host network:
+
+- Separate IP from Linux host
+- Separate MAC address (LAA)
+- DHCP reservation recommended
+
+### Usage
+
+```bash
+# Detect Windows installation on bare metal
+nextraos-vm detect-windows
+
+# Create synthetic disk
+nextraos-vm create-syndisk
+
+# Start Windows in SynWin mode
+nextraos-vm start windows --synwin
+
+# Cleanup after shutdown
+nextraos-vm done-syndisk
+```
+
+### Limitations
+
+- No Secure Boot support in VM
+- No TPM support in VM
+- BitLocker with TPM keys fails (PIN/USB key may work)
+- Fast Startup must be disabled in Windows
+- VirtIO display drivers may need pre-installation
+- GPT/UEFI required (no MBR/BIOS support)
+
+### Status
+
+**Phase 5: Investigation only**
+**Phase 7: Implementation (if viable)**
+
+Reference: https://www.dragonhawk.org/tech/synwin/
+
 ---
 
 # Android Integration
@@ -178,7 +259,7 @@ macOS has no RemoteApp equivalent protocol.
 - AVX2-capable CPU (Intel Haswell 4th gen / AMD Zen, 2013+)
 - KVM support
 - 8GB+ RAM
-- 64GB+ storage
+- 32GB+ storage (expandable)
 
 ## Legal
 
@@ -386,6 +467,49 @@ VM_SNAPSHOT_MAX_COUNT=10        # Max snapshots per VM (auto-rotate)
 VM_READY_TIMEOUT=120            # Agent/SSH ready timeout
 ```
 VM_READY_TIMEOUT=120         # Agent/SSH ready timeout
+```
+
+---
+
+# Disk Configuration
+
+## Windows VM Disk
+
+| Property | Value |
+|---|---|
+| Format | qcow2 |
+| Initial Size | 32GB |
+| Max Size | Expandable (host-dependent) |
+| Location | `~/.local/share/nextraos/vms/windows/disk.qcow2` |
+| Bus | VirtIO |
+| Cache | none |
+| Discard | unmap (TRIM support) |
+
+The Windows VM disk is created as a 32GB qcow2 image and expands
+as needed. This is sufficient for a base Windows installation with
+room for applications. Users can resize manually if needed:
+
+```bash
+# Resize Windows VM disk to 64GB
+qemu-img resize ~/.local/share/nextraos/vms/windows/disk.qcow2 64G
+```
+
+## macOS VM Disk
+
+| Property | Value |
+|---|---|
+| Format | qcow2 |
+| Initial Size | 32GB |
+| Max Size | Expandable (host-dependent) |
+| Location | `~/.local/share/nextraos/vms/macos/macos.qcow2` |
+| Bus | VirtIO |
+| Cache | none |
+| Discard | unmap |
+
+Additionally, a 200MB OpenCore boot disk is created:
+
+```
+~/.local/share/nextraos/vms/macos/OpenCore.qcow2
 ```
 
 ---

@@ -30,6 +30,7 @@ Implementation (Stage 1):
 - `config/includes.chroot/` for file overlays (SDDM autologin, etc.)
 - Output: `iso-hybrid` image (BIOS + UEFI bootable)
 - QEMU testing: OVMF firmware at `/usr/share/OVMF/OVMF_CODE_4M.fd`
+- Windows VM disk: 32GB qcow2 (expandable)
 
 Build command:
 
@@ -769,6 +770,121 @@ Graphics options:
 | SPICE (default) | Interactive desktop use | Medium |
 | VNC | Legacy clients | Low |
 | Headless | execute-only, batch operations | Minimal |
+
+---
+
+# SynWin
+
+SynWin enables running the same Windows installation on both
+bare metal (dual-boot) and in a VM under Linux.
+
+Reference:
+
+https://www.dragonhawk.org/tech/synwin/
+
+Decision:
+
+**Investigate in Phase 5, implement in Phase 7 if viable.**
+
+Key Concepts:
+
+- Synthetic disk via Linux device mapper (dmsetup)
+- Real partition mapping (ESP, MSR, Windows)
+- Hardware spoofing for Windows license continuity
+- Network bridging via TAP devices
+- Single Windows installation shared between bare metal and VM
+
+Architecture:
+
+    Bare Metal Boot
+        |
+        +--> Windows boots directly on hardware (normal dual-boot)
+
+    VM Boot (under Linux)
+        |
+        +--> synwin_prep creates synthetic disk
+        |       |
+        |       +--> Maps ESP, MSR, Windows partitions
+        |       +--> Copies preamble (MBR+GPT)
+        |       +--> Creates network bridge
+        |
+        +--> QEMU/KVM boots Windows from synthetic disk
+        |
+        +--> synwin_done cleans up after shutdown
+
+Requirements:
+
+- Microsoft Windows installed on bare metal (GPT/UEFI)
+- Linux with KVM support
+- QEMU virtual machine manager
+- gdisk partitioning tool
+- UEFI boot (not BIOS nor CSM)
+- GPT-based partitioning (not MBR/BIOS)
+- Single Windows partition
+- Microsoft-recommended partition order (ESP, MSR, Windows)
+
+Implementation:
+
+    synwin_prep     # Run as root: create synthetic disk, network bridge
+    synwin_run      # Run as user: start QEMU/KVM with Windows
+    synwin_done     # Run as root: cleanup synthetic disk, network bridge
+
+Limitations:
+
+- No Secure Boot support in VM
+- No TPM support in VM
+- BitLocker with TPM keys fails (PIN/USB key may work)
+- Fast Startup must be disabled in Windows
+- VirtIO display drivers may need pre-installation on bare metal
+- GPT/UEFI required (no MBR/BIOS support)
+- Partition table backup (GPT tail) is not mapped (returns zeros)
+
+Hardware Spoofing:
+
+Windows uses hardware attributes for license activation/tracking.
+SynWin spoofs these attributes to match bare metal:
+
+- PC make, model, serial number
+- Mainboard make, model, serial number
+- Hard disk serial number
+
+All obtainable via dmidecode(8) under Linux.
+
+Network Identity:
+
+Windows in VM needs separate network identity from Linux host:
+
+- Distinct hostname
+- Distinct IP address (DHCP reservation or static)
+- Distinct MAC address (LAA recommended)
+
+This prevents name/IP conflicts when both run simultaneously.
+
+Integration with NextraOS:
+
+Phase 5 (Investigation):
+
+- Analyze SynWin source code
+- Verify device mapper functionality
+- Test hardware spoofing effectiveness
+- Evaluate security implications
+- Document findings in this file
+
+Phase 7 (Implementation):
+
+- Add `nextraos-vm detect-windows` command
+- Add `nextraos-vm create-syndisk` command
+- Add `nextraos-vm start windows --synwin` option
+- Add `nextraos-vm done-syndisk` command
+- Integrate with systemd services
+- Add to desktop integration (MIME handlers, .desktop files)
+
+Alternatives Considered:
+
+- WinApps: Uses RDP/RemoteApp; requires separate Windows install
+- WinBoat: Docker-based; has GPU passthrough limitations
+- Wine/Bottles: Compatibility issues with many Windows apps
+- Standalone qcow2: Requires separate Windows installation
 
 ---
 

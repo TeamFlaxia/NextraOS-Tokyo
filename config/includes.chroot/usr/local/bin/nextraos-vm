@@ -320,8 +320,8 @@ cmd_windows_create() {
         echo "==> Windows VM disk already exists: $VM_WIN_DISK"
         return 0
     fi
-    echo "==> Creating Windows VM disk (128GB, expandable)"
-    qemu-img create -f qcow2 "$VM_WIN_DISK" 128G
+    echo "==> Creating Windows VM disk (32GB, expandable)"
+    qemu-img create -f qcow2 "$VM_WIN_DISK" 32G
     echo "==> Disk created: $VM_WIN_DISK"
 }
 
@@ -480,8 +480,8 @@ cmd_macos_create() {
         echo "==> macOS VM disk already exists: $VM_MAC_DISK"
         return 0
     fi
-    echo "==> Creating macOS VM disk (256GB, expandable)"
-    qemu-img create -f qcow2 "$VM_MAC_DISK" 256G
+    echo "==> Creating macOS VM disk (32GB, expandable)"
+    qemu-img create -f qcow2 "$VM_MAC_DISK" 32G
 
     # Create OpenCore disk if not present
     if [ ! -f "$VM_MAC_OC" ]; then

@@ -142,6 +142,7 @@ Implement:
 - MIME type registration (.exe, .msi)
 - Windows VM fallback for .exe files
 - Application menu integration
+- SynWin investigation (research and prototyping)
 
 Success criteria:
 
@@ -153,7 +154,7 @@ Architecture:
     Linux Desktop (KDE Plasma Wayland)
         │
         └── libvirt / QEMU/KVM
-            ├── Windows VM
+            ├── Windows VM (32GB qcow2, expandable)
             ├── SPICE display
             └── systemd service
 
@@ -162,6 +163,7 @@ Note:
 - Full desktop only (no seamless windows)
 - Requires significant RAM (4-8 GB for VM)
 - Resource optimization via balloon driver, CPU pinning
+- SynWin mode investigation (Phase 5 research only)
 
 ---
 
