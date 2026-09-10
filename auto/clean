@@ -2,8 +2,8 @@
 set -e
 
 if [ -n "$1" ]; then
-    lb clean noauto --stage "$1"
-    echo "Cleaned stage: $1"
+    lb clean noauto --"$1"
+    echo "Cleaned: $1"
 else
     lb clean noauto
     echo "Cleaned all stages"
