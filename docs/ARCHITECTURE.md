@@ -49,22 +49,13 @@ Used for:
 - APT packages
 - Flatpak applications
 
-### Wine
-
-Used for Windows applications that work through Wine.
-
-### Proton
-
-Used primarily for applications where Proton provides better
-compatibility, especially games.
-
 ### Waydroid
 
 Provides an Android environment inside Linux.
 
 ### Windows VM
 
-Used when Wine/Proton cannot provide sufficient compatibility.
+Used for Windows applications.
 
 Implementation:
 
@@ -117,8 +108,6 @@ Example:
         -> Waydroid
 
     foo.exe
-        -> Wine
-        -> Proton
         -> Windows VM
 
     foo.app

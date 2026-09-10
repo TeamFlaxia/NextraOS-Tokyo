@@ -31,7 +31,6 @@ a virtual machine.
 - APT
 - Flatpak
 - VSCodium
-- Wine / Bottles / Proton
 - Waydroid
 - QEMU / KVM
 
@@ -55,12 +54,9 @@ Waydroid provides the Android execution environment.
 
 ### Windows
 
-The preferred order is:
+Windows applications run in a Windows VM via QEMU/KVM.
 
-1. Wine
-2. Bottles
-3. Proton where appropriate
-4. Windows with KVM
+1. Windows with KVM
 
 ### macOS
 
@@ -132,7 +128,7 @@ This produces `dist/nextraos-live-amd64.iso`.
 | Phase 9 — Production Hardening | Pending |
 
 Phase 1 produces a bootable Debian Trixie-based KDE Plasma 6
-Wayland Live ISO with Docker, Flatpak, and VSCodium included.
+Wayland Live ISO with Flatpak and VSCodium included.
 Boots successfully in QEMU with UEFI.
 
 See:

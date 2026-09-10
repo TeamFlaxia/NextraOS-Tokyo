@@ -48,8 +48,6 @@ For example:
         -> Waydroid
 
     Windows application
-        -> Wine / Bottles
-        -> Proton where appropriate
         -> Windows VM fallback
 
     macOS application
@@ -69,11 +67,8 @@ desktop applications.
 
 The user should not need to manually launch:
 
-- Wine
-- Bottles
 - Waydroid
 - QEMU
-- Docker
 - VM management software
 
 for normal application usage.
@@ -96,15 +91,9 @@ Examples:
 - KDE Plasma
 - Wayland
 - PipeWire
-- Wine
-- Bottles
-- Proton
 - Waydroid
 - QEMU
 - KVM
-- Docker or Podman
-- dockur/windows
-- dockur/macos
 - Flatpak
 - APT
 
@@ -130,10 +119,6 @@ Before concluding that something is impossible:
 Unusual architectures are allowed.
 
 Claims such as:
-
-> "Docker cannot do that."
-
-or:
 
 > "Linux cannot run that."
 
@@ -209,16 +194,9 @@ Research:
 - PipeWire
 - APT
 - Flatpak
-- Wine
-- Bottles
-- Proton
 - Waydroid
 - QEMU
 - KVM
-- Docker
-- Podman
-- dockur/windows
-- dockur/macos
 - desktop integration projects
 - filesystem integration
 - application discovery
@@ -295,22 +273,21 @@ Starter applications:
 
 ---
 
-## Stage 4 — Windows Compatibility
+## Stage 4 — Windows VM Integration
 
 Implement:
 
-1. Wine
-2. Bottles
-3. Proton where appropriate
-4. application metadata
-5. executable detection
-6. desktop integration
-7. Windows VM fallback
+1. QEMU/KVM via libvirt
+2. SPICE protocol integration
+3. application metadata
+4. executable detection
+5. desktop integration
+6. systemd user services
 
-The fallback should not be treated as an ordinary application
-launcher.
+Windows applications run in a full Windows VM managed by libvirt.
 
-It is a compatibility fallback.
+The VM should eventually expose Windows applications as closely as
+possible to normal desktop applications.
 
 ---
 
@@ -330,19 +307,15 @@ The goal is:
 
 ---
 
-## Stage 6 — Windows VM
+## Stage 6 — Windows VM Optimization
 
-Investigate and integrate:
+Implement:
 
-- QEMU
-- KVM
-- Docker/Podman
-- dockur/windows
-- WinApps
-- WinBoat
-- related projects
-
-Do not fork these projects without a strong reason.
+- CPU pinning
+- I/O optimization (virtio-scsi, cache=none)
+- Memory balloon driver
+- Headless mode for execute-only workloads
+- SPICE on-demand activation
 
 The VM should eventually expose Windows applications as closely as
 possible to normal desktop applications.
@@ -355,7 +328,6 @@ Investigate:
 
 - QEMU
 - KVM
-- dockur/macos
 - hardware compatibility
 - legal restrictions
 - licensing
@@ -516,9 +488,7 @@ The installer should follow this conceptual flow.
         [x] Waydroid
 
     [x] Windows apps
-        [x] Wine / Bottles
-        [x] Proton
-        [ ] Windows VM fallback [Experimental]
+        [x] Windows VM (QEMU/KVM)
 
     [ ] macOS apps
         [ ] macOS virtualization [Experimental]
@@ -597,15 +567,12 @@ The initial application menu should conceptually contain:
     └── Software Center
 
     Windows Apps
-    ├── Wine / Bottles
-    ├── Proton
     └── Windows VM
 
     Android Apps
     └── Waydroid
 
     Virtualization
-    ├── Docker
     └── QEMU / KVM
 
 The exact KDE menu implementation may change.
@@ -641,10 +608,6 @@ Conceptually:
         |
         +--> Flatpak
         |
-        +--> Wine
-        |
-        +--> Proton
-        |
         +--> Waydroid
         |
         +--> Windows VM
@@ -666,17 +629,13 @@ The order of preference should be:
 
 1. Native Linux
 2. Flatpak
-3. Wine
-4. Proton
-5. Waydroid
-6. Windows VM
-7. macOS virtualization
+3. Waydroid
+4. Windows VM
+5. macOS virtualization
 
 This ordering is not absolute.
 
 The resolver should consider application-specific compatibility.
-
-For example, a game may prefer Proton over ordinary Wine.
 
 A business application may require a Windows VM.
 
@@ -786,7 +745,6 @@ A preferred repository structure:
     ├── packages/
     ├── desktop/
     ├── integrations/
-    │   ├── wine/
     │   ├── waydroid/
     │   ├── windows-vm/
     │   └── macos-vm/
@@ -866,8 +824,6 @@ At minimum, test:
 
 Later test:
 
-- Wine
-- Proton
 - Waydroid
 - Windows VM
 - macOS virtualization

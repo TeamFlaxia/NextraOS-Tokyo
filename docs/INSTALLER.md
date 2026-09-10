@@ -74,9 +74,7 @@ Optional components should be downloaded after the user selects them.
         [x] Waydroid
 
     [x] Windows apps
-        [x] Wine / Bottles
-        [x] Proton
-        [ ] Windows VM fallback [Experimental]
+        [x] Windows VM (QEMU/KVM)
 
     [ ] macOS apps
         [ ] macOS virtualization [Experimental]

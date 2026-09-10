@@ -8,4 +8,4 @@ if [ -z "$EXECUTABLE" ]; then
     exit 1
 fi
 
-nextraos-wine-launch "$EXECUTABLE" || nextraos-vm-fallback "$EXECUTABLE"
+nextraos-vm-fallback "$EXECUTABLE"

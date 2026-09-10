@@ -16,9 +16,8 @@ or virtualization technology is being used.
 |---|---|---|---|
 | L0 | Native Linux (APT) | Native | Complete |
 | L1 | Flatpak | Sandboxed but native-feeling | Complete |
-| L2 | Wine/Bottles/Proton | Windows compatibility | **Native GPU** |
-| L3 | Waydroid | Android container | Complete |
-| L4 | libvirt/QEMU/KVM + OpenCore | macOS VM | **Full desktop only** |
+| L2 | Waydroid | Android container | Complete |
+| L3 | libvirt/QEMU/KVM | Windows/macOS VM | **Full desktop only** |
 
 ---
 
@@ -29,54 +28,44 @@ or virtualization technology is being used.
 ```
 Linux Desktop (KDE Plasma Wayland)
     │
-    ├── Wine
-    │   └── Windows applications (native GPU)
-    │
-    ├── Bottles (GUI management)
-    │
-    └── Proton (Steam gaming)
+    └── libvirt / QEMU/KVM
+        ├── Windows VM
+        ├── SPICE display
+        └── systemd service
 ```
 
 ## Components
 
-### Wine
+### QEMU/KVM via libvirt
 
-Windows compatibility layer for running Windows applications.
+Windows applications run in a full Windows VM managed by libvirt.
 
-- Native GPU acceleration (via Linux drivers)
-- Low resource usage (2-4 GB RAM)
-- Seamless window integration
-- Good Office/browser compatibility
+- Hardware-accelerated virtualization
+- KVM acceleration via /dev/kvm
+- `virt-install` for VM creation
+- `virsh` for lifecycle management
+- systemd user service management
 
-### Bottles
+### SPICE
 
-GUI management for Wine prefixes.
+Display protocol for Windows VM.
 
-- Isolated Wine environments
-- Easy configuration
-- Flatpak distribution
-
-### Proton
-
-Steam's Wine-based gaming layer.
-
-- Automatic game compatibility
-- DirectX 9-11 support
-- Anti-cheat compatibility (limited)
+- Clipboard sharing via spice-vdagent
+- Dynamic resolution adjustment
+- Audio forwarding
+- Package: spice-gtk
 
 ## File Sharing
 
 | Path | Method | Description |
 |---|---|---|
-| /home/user/ | Native | Wine uses host filesystem |
-| ~/.local/share/bottles/ | Bottles | Bottle storage |
+| /home/user/ | SPICE webdav | Host shared folder |
 
 ## Limitations
 
-- Some Windows applications do not work
-- DirectX 12 support is limited
-- Anti-cheat software may not work
-- Fallback: macOS VM for incompatible apps
+- Full desktop only (no seamless windows)
+- Requires significant RAM (4-8 GB for VM)
+- Resource optimization via balloon driver, CPU pinning
 
 ---
 
@@ -203,7 +192,7 @@ macOS has no RemoteApp equivalent protocol.
 
 | Ecosystem | Isolation | File Sharing | Network |
 |---|---|---|---|
-| Windows (Wine) | Wine prefix | Native filesystem | Host network |
+| Windows VM | libvirt/QEMU/KVM | SPICE webdav | NAT |
 | Android | LXC container | bind mount | Bridge |
 | macOS VM | libvirt/QEMU/KVM | SPICE webdav | NAT |
 
@@ -227,7 +216,7 @@ NextraOS can run anything you want.
 What type of apps do you want?
 
 [x] Windows Apps
-    Wine, Bottles, Proton (native GPU acceleration)
+    Windows VM (QEMU/KVM)
 
 [ ] Android Apps
     Waydroid
@@ -240,7 +229,7 @@ What type of apps do you want?
 
 Based on user selection:
 
-- **Windows**: Install Wine, Bottles, Proton; configure desktop integration
+- **Windows**: Configure libvirt/QEMU/KVM, systemd services
 - **Android**: Install Waydroid, configure kernel modules
 - **macOS**: Configure libvirt/QEMU/KVM, OpenCore, SPICE; download Recovery DMG
 
@@ -506,9 +495,9 @@ sudo apt install spice-gtk
 
 ## Windows
 
-- Additional Wine compatibility improvements
-- Proton integration for more games
-- Direct3D 12 support (when available)
+- Additional Windows VM optimizations
+- Seamless window integration (if feasible)
+- GPU passthrough (if feasible)
 
 ## Android
 
@@ -526,9 +515,6 @@ sudo apt install spice-gtk
 
 # References
 
-- Wine: https://www.winehq.org/
-- Bottles: https://usebottles.com/
-- Proton: https://github.com/ValveSoftware/Proton
 - Waydroid: https://github.com/waydroid/waydroid
 - OpenCore: https://github.com/kholia/OSX-KVM
 - SPICE: https://www.spice-space.org/

@@ -75,35 +75,22 @@ Wine, Bottles, and Proton provide Windows compatibility layers.
 
 Decision:
 
-**Use Wine/Bottles/Proton as the primary Windows compatibility layer.**
+**Not used in NextraOS.**
 
-The Docker-based VM approach (dockur/windows) was evaluated and rejected
-because GPU passthrough is technically impossible in Docker containers.
-Without GPU acceleration, Windows VMs are unsuitable for games, media,
-and 3D applications.
+Wine was evaluated but rejected for the following reasons:
 
-Wine/Proton provides:
-- Native GPU acceleration (via Linux GPU drivers)
-- Low resource usage (2-4 GB RAM vs 8+ GB for VMs)
-- Seamless window integration (native Linux windows)
-- Good compatibility for Office, browsers, and games
+1. Modern Windows applications (especially .NET 6+, UWP, Electron
+   with GPU acceleration) often do not work under Wine
+2. DRM-protected content and anti-cheat software are incompatible
+3. Wine introduces heavy i386 dependencies (8+ packages, Vulkan i386)
+4. General users should not need to troubleshoot Wine failures
+5. .exe files should go directly to the Windows VM
 
-Steam provides Proton automatically for games.
+Steam manages its own Proton installation and does not require
+NextraOS to bundle it.
 
-Implementation:
-
-- `wine` from Debian contrib (with dependencies)
-- `bottles` via Flatpak (GUI management)
-- Steam/Proton for gaming
-- Desktop integration via .desktop files
-- MIME type registration for .exe, .msi
-
-Limitations:
-
-- Some Windows applications do not work under Wine
-- DirectX 12 support is limited
-- Anti-cheat software may not work
-- Fallback: macOS VM for incompatible applications
+Users who want Wine or Bottles can install them separately via
+Flatpak or APT.
 
 ---
 
@@ -136,8 +123,7 @@ The Docker-based approach has fundamental limitations:
 
 Alternative:
 
-Use Wine/Bottles/Proton for Windows compatibility.
-Use direct QEMU/KVM for macOS VM (experimental only).
+Use direct QEMU/KVM for Windows and macOS VMs.
 
 ---
 
@@ -163,8 +149,7 @@ Additionally, WinApps depends on FreeRDP which has:
 
 Alternative:
 
-Use Wine/Bottles/Proton for Windows compatibility with native
-GPU acceleration.
+Use direct QEMU/KVM for Windows VM.
 
 ---
 
@@ -278,29 +263,24 @@ and expose the result to the installer.
 
 # Docker / Podman
 
-Docker was evaluated as a container/VM management layer but is no
-longer used for VM hosting.
+Docker was evaluated as a container/VM management layer and for
+general-purpose use.
 
 Decision:
 
-**Docker is not used for VM management.**
+**Docker is not installed in NextraOS.**
 
-Previous architecture used Docker for:
-- dockur/windows (Windows VM)
-- dockur/macos (macOS VM)
+Docker was rejected because:
 
-This approach was rejected because:
 - Docker's device abstraction prevents GPU passthrough
 - VFIO device assignment requires direct host kernel access
 - Docker adds unnecessary overhead for VM workloads
 - systemd provides better integration for VM management
+- General users should not need Docker for normal desktop usage
 
-Docker may still be useful for:
-- Development containers
-- CI/CD pipelines
-- Application sandboxing
+Podman was also evaluated but not included for the same reasons.
 
-But not for running full VMs with GPU passthrough.
+Users who need Docker or Podman can install them separately.
 
 ---
 

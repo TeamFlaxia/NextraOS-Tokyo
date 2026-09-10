@@ -17,7 +17,6 @@ The following should be treated as separate trust domains:
 - host Linux
 - native applications
 - Flatpak applications
-- Wine applications
 - Android environment
 - Windows VM
 - macOS VM

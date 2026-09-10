@@ -15,9 +15,6 @@ Research:
 - Waydroid
 - QEMU
 - KVM
-- Wine
-- Bottles
-- Proton
 - SPICE
 - OpenCore
 - systemd
@@ -133,45 +130,38 @@ Note: Waydroid requires installed system (not live mode).
 
 ---
 
-# Phase 5 — Windows Compatibility
+# Phase 5 — Windows VM Integration
 
 Implement:
 
-- Wine (Windows compatibility layer)
-- Bottles (Wine GUI management)
-- Proton (Steam gaming)
+- QEMU/KVM via libvirt
+- SPICE protocol integration
+- spice-vdagent (clipboard, resolution)
+- systemd user services
 - Desktop integration (.desktop files)
 - MIME type registration (.exe, .msi)
+- Windows VM fallback for .exe files
 - Application menu integration
-- Starter kit:
-  - Firefox
-  - GIMP
-  - VLC
-  - VSCodium
-  - LibreOffice
 
 Success criteria:
 
-Windows applications run natively on NextraOS with GPU
-acceleration.
+Windows applications run in a Windows VM accessible via SPICE.
+.exe files launch directly in the Windows VM.
 
 Architecture:
 
     Linux Desktop (KDE Plasma Wayland)
         │
-        ├── Wine
-        │   └── Windows applications (native GPU)
-        │
-        ├── Bottles (GUI management)
-        │
-        └── Proton (Steam gaming)
+        └── libvirt / QEMU/KVM
+            ├── Windows VM
+            ├── SPICE display
+            └── systemd service
 
-Limitations:
+Note:
 
-- Some Windows applications do not work under Wine
-- DirectX 12 support is limited
-- Anti-cheat software may not work
-- Fallback: macOS VM for incompatible applications
+- Full desktop only (no seamless windows)
+- Requires significant RAM (4-8 GB for VM)
+- Resource optimization via balloon driver, CPU pinning
 
 ---
 
@@ -264,6 +254,6 @@ was originally designed for.
 Supported ecosystems:
 
 - Native Linux (APT, Flatpak)
-- Windows (Wine, Bottles, Proton)
+- Windows (Windows VM via QEMU/KVM)
 - Android (Waydroid)
 - macOS (experimental, QEMU/KVM)
