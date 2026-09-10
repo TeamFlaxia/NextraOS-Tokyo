@@ -5,11 +5,18 @@ PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CHROOT_DIR="$PROJECT_DIR/chroot"
 
 # Unmount virtual filesystems before cleaning
+# Reverse order: deepest mount first
 for mount_point in "$CHROOT_DIR/dev/pts" "$CHROOT_DIR/dev/shm" "$CHROOT_DIR/dev" "$CHROOT_DIR/proc" "$CHROOT_DIR/sys"; do
-    if mountpoint -q "$mount_point" 2>/dev/null; then
+    if mount | grep -q " on $mount_point "; then
         echo "Unmounting $mount_point"
-        umount "$mount_point" 2>/dev/null || true
+        umount -l "$mount_point" 2>/dev/null || umount -f "$mount_point" 2>/dev/null || true
     fi
+done
+
+# Also try to unmount any remaining nested mounts
+for mount_point in $(mount | grep "$CHROOT_DIR" | awk '{print $3}' | sort -r); do
+    echo "Unmounting $mount_point"
+    umount -l "$mount_point" 2>/dev/null || umount -f "$mount_point" 2>/dev/null || true
 done
 
 if [ -n "$1" ]; then
