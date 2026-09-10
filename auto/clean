@@ -1,6 +1,17 @@
 #!/bin/sh
 set -e
 
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+CHROOT_DIR="$PROJECT_DIR/chroot"
+
+# Unmount virtual filesystems before cleaning
+for mount_point in "$CHROOT_DIR/dev/pts" "$CHROOT_DIR/dev/shm" "$CHROOT_DIR/dev" "$CHROOT_DIR/proc" "$CHROOT_DIR/sys"; do
+    if mountpoint -q "$mount_point" 2>/dev/null; then
+        echo "Unmounting $mount_point"
+        umount "$mount_point" 2>/dev/null || true
+    fi
+done
+
 if [ -n "$1" ]; then
     lb clean noauto --"$1"
     echo "Cleaned: $1"
