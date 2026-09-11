@@ -17,6 +17,7 @@ lb config noauto \
     --apt-indices true \
     --security true \
     --updates true \
+    --backports true \
     --memtest none \
     --win32-loader false \
     --bootappend-live "boot=live components quiet username=user hostname=nextraos locales=en_US.UTF-8" \

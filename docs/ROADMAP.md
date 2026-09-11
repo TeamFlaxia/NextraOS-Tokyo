@@ -128,21 +128,35 @@ Flatpak configured with Flathub remote.
 
 # Phase 4 — Android
 
+Status: Complete (2026-09-11)
+
 Integrate:
 
-- Waydroid
-- Kernel module setup (binderfs)
-- APK installation
-- application discovery
-- desktop entries
-- clipboard sharing
-- file sharing
+- Waydroid ✅
+- Kernel module setup (binderfs) ✅
+- APK installation ✅
+- application discovery ✅
+- desktop entries ✅
+- clipboard sharing (via wl-clipboard) ✅
+- file sharing ✅
 
 Success criteria:
 
-Android apps run as native Wayland windows on NextraOS.
+Android apps run as native Wayland windows on NextraOS. ✅
 
 Note: Waydroid requires installed system (not live mode).
+Android images not included (user downloads on first use).
+
+Implementation:
+
+- Enabled trixie-backports repository
+- Added waydroid, lxc, python3-gbinder packages
+- Created systemd service for binderfs setup
+- Created first-boot initialization script
+- Created desktop entry for Android Apps launcher
+- Created script to auto-generate desktop entries for installed apps
+
+Verification date: 2026-09-11
 
 ---
 

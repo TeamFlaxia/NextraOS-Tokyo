@@ -1,0 +1,13 @@
+[Unit]
+Description=Waydroid first-time initialization
+After=network-online.target
+Wants=network-online.target
+After=waydroid-binderfs.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/waydroid-init.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

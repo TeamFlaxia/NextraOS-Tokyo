@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Android Apps
+Comment=Launch Android applications
+Exec=waydroid show-full-ui
+Icon=waydroid
+Terminal=false
+Type=Application
+Categories=System;
+Keywords=android;mobile;phone;

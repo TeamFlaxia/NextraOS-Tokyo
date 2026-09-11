@@ -1,0 +1,28 @@
+#!/bin/sh
+set -e
+
+echo "==> NextraOS: Setting up Waydroid"
+
+# Enable binderfs service
+systemctl enable waydroid-binderfs.service
+
+# Enable waydroid-init service (runs on first boot)
+systemctl enable waydroid-init.service
+
+# Create waydroid data directory
+mkdir -p /var/lib/waydroid
+
+# Create /etc/waydroid directory if it doesn't exist
+mkdir -p /etc/waydroid
+
+# Configure waydroid to use system images
+cat > /etc/waydroid/waydroid.cfg << 'EOF'
+[waydroid]
+vendor_path = /usr/share/waydroid/images
+system_path = /usr/share/waydroid/images
+
+[lxc]
+lxc_path = /var/lib/waydroid/lxc
+EOF
+
+echo "==> NextraOS: Waydroid setup complete"
