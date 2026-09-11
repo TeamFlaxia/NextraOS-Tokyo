@@ -1,0 +1,29 @@
+#!/bin/sh
+set -e
+
+echo "==> NextraOS: Setting up production hardening"
+
+# Create log directory
+mkdir -p /var/log/nextraos
+
+# Install hardening dependencies
+apt-get update -y
+apt-get install -y \
+    ufw \
+    unattended-upgrades \
+    rsyslog \
+    htop \
+    iotop \
+    iftop \
+    nethogs \
+    sysstat \
+    dstat \
+    strace \
+    ltrace \
+    tcpdump \
+    cgroup-tools
+
+# Run hardening script
+/usr/local/bin/nextraos-harden.sh
+
+echo "==> NextraOS: Production hardening complete"
