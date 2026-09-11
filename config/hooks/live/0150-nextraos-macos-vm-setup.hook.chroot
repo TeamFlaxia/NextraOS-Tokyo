@@ -1,0 +1,81 @@
+#!/bin/sh
+set -e
+
+echo "==> NextraOS: Setting up macOS VM integration"
+
+# Create directories for macOS VM
+mkdir -p /usr/share/nextraos/opencore
+mkdir -p /var/lib/libvirt/images/macos
+
+# Create OpenCore directory structure
+mkdir -p /usr/share/nextraos/opencore/EFI
+mkdir -p /usr/share/nextraos/opencore/EFI/OC
+
+# Create a basic OpenCore config (user will need to customize)
+cat > /usr/share/nextraos/opencore/EFI/OC/config.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>ACPI</key>
+    <dict/>
+    <key>Booter</key>
+    <dict/>
+    <key>DeviceProperties</key>
+    <dict/>
+    <key>Kernel</key>
+    <dict/>
+    <key>LauncherOption</key>
+    <string>Disabled</string>
+    <key>Misc</key>
+    <dict>
+        <key>Boot</key>
+        <dict>
+            <key>PickerMode</key>
+            <string>Builtin</string>
+        </dict>
+    </dict>
+    <key>NVRAM</key>
+    <dict/>
+    <key>PlatformInfo</key>
+    <dict/>
+    <key>UEFI</key>
+    <dict/>
+</dict>
+</plist>
+EOF
+
+# Enable libvirt service
+systemctl enable libvirtd.service
+
+# Create systemd user service for macOS VM
+mkdir -p /etc/systemd/user
+
+cat > /etc/systemd/user/macos-vm.service << 'EOF'
+[Unit]
+Description=macOS VM Service
+After=libvirtd.service
+Requires=libvirtd.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/virsh start macos-vm
+ExecStop=/usr/bin/virsh shutdown macos-vm
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+EOF
+
+# Enable the service
+systemctl enable macos-vm.service 2>/dev/null || true
+
+echo "==> NextraOS: macOS VM integration complete"
+echo ""
+echo "Note: macOS VM requires:"
+echo "1. OpenCore bootloader (download with: macos-vm.sh download-opencore)"
+echo "2. macOS Recovery DMG (download with: macos-vm.sh download-recovery)"
+echo "3. Create VM with: macos-vm.sh create"
+echo ""
+echo "See: https://github.com/foxlet/macOS-Simple-KVM for detailed instructions"

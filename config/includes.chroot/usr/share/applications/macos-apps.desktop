@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=macOS Apps
+Comment=Launch macOS applications
+Exec=/usr/local/bin/macos-vm.sh connect
+Icon=macos-apps
+Terminal=false
+Type=Application
+Categories=System;
+Keywords=macos;vm;virtualization;apple;

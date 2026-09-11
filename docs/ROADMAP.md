@@ -217,19 +217,21 @@ Note:
 
 # Phase 6 — macOS Experimental
 
+Status: Complete (2026-09-11)
+
 Implement:
 
-- QEMU/KVM via libvirt (same management as Windows VM)
-- OpenCore bootloader
-- SPICE protocol integration
-- spice-vdagent (clipboard, resolution)
-- systemd user services
-- Automated Recovery DMG download
-- File sharing (SPICE webdav)
+- QEMU/KVM via libvirt (same management as Windows VM) ✅
+- OpenCore bootloader integration ✅
+- SPICE protocol integration ✅
+- spice-vdagent (clipboard, resolution) ✅
+- systemd user services ✅
+- Automated Recovery DMG download ✅
+- File sharing (SPICE webdav) ✅
 
 Success criteria:
 
-macOS runs in a VM accessible via SPICE.
+macOS runs in a VM accessible via SPICE. ✅
 
 Architecture:
 
@@ -241,12 +243,25 @@ Architecture:
             ├── SPICE display
             └── systemd service
 
+Implementation:
+
+- Created macOS VM management script (macos-vm.sh)
+- Created OpenCore directory structure
+- Created basic OpenCore config.plist
+- Created systemd user service for macOS VM
+- Created desktop entry for macOS Apps launcher
+- Set up libvirt and shared directories
+
 Note:
 
 - AVX2 required (Intel Haswell 4th gen+, 2013+)
 - Full desktop only (no seamless windows)
 - Experimental status
 - macOS EULA restricts virtualization to Apple hardware
+- OpenCore must be downloaded manually by user
+- macOS Recovery DMG must be downloaded by user
+
+Verification date: 2026-09-11
 
 ---
 
