@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Windows Apps
+Comment=Launch Windows applications
+Exec=/usr/local/bin/windows-vm.sh connect
+Icon=windows-apps
+Terminal=false
+Type=Application
+Categories=System;
+Keywords=windows;vm;virtualization;

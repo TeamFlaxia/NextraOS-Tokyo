@@ -1,0 +1,14 @@
+[Unit]
+Description=Windows VM Service
+After=libvirtd.service
+Requires=libvirtd.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/virsh start windows-vm
+ExecStop=/usr/bin/virsh shutdown windows-vm
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

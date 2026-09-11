@@ -1,0 +1,22 @@
+#!/bin/sh
+set -e
+
+echo "==> NextraOS: Setting up Windows VM integration"
+
+# Enable libvirt service
+systemctl enable libvirtd.service
+
+# Add user to libvirt group (for live user)
+usermod -aG libvirt user 2>/dev/null || true
+
+# Create shared directory for Windows VM
+mkdir -p /var/lib/libvirt/images/windows
+chown libvirt-qemu:kvm /var/lib/libvirt/images/windows 2>/dev/null || true
+
+# Set up MIME types for Windows executables
+update-mime-database /usr/share/mime 2>/dev/null || true
+
+# Update desktop database
+update-desktop-database /usr/share/applications 2>/dev/null || true
+
+echo "==> NextraOS: Windows VM integration complete"
