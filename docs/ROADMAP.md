@@ -70,11 +70,11 @@ display (VNC viewer, Spice, or local display).
 
 # Phase 2 — Installer
 
-Status: In Progress
+Status: Complete (2026-09-11)
 
 Implement:
 
-- Calamares-based GUI installer
+- Calamares-based GUI installer ✅
 - welcome screen ✅
 - user creation ✅
 - language ✅
@@ -82,14 +82,20 @@ Implement:
 - timezone ✅
 - hardware detection ✅
 - network detection ✅
-- ecosystem selection (packagechooserq) ✅
-- starter applications
+- ecosystem selection (packagechooser) ✅
+- starter applications ✅
 - disk selection ✅
 - installation ✅
+- NextraOS branding ✅
+- post-install ecosystem configuration ✅
 
 Success criteria:
 
-A fresh QEMU VM can install NextraOS from the ISO.
+A fresh QEMU VM can install NextraOS from the ISO. ✅
+
+Verification date: 2026-09-11
+
+Tested in QEMU with UEFI boot (OVMF), 8GB RAM, 4 CPUs, KVM.
 
 ---
 
