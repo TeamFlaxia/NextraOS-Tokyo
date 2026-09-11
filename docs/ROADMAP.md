@@ -101,20 +101,28 @@ Tested in QEMU with UEFI boot (OVMF), 8GB RAM, 4 CPUs, KVM.
 
 # Phase 3 — Native Application Layer
 
+Status: Complete (2026-09-11)
+
 Implement:
 
-- APT
-- Flatpak
-- Software Center
-- application discovery
-- desktop integration
+- APT ✅
+- Flatpak ✅
+- Software Center (plasma-discover) ✅
+- application discovery ✅
+- desktop integration ✅
 
 Starter kit:
 
-- Firefox
-- GIMP
-- VLC
-- VSCodium
+- Firefox (firefox-esr) ✅
+- GIMP ✅
+- VLC ✅
+- VSCodium (via APT repo) ✅
+
+Verification date: 2026-09-11
+
+All starter applications included in package lists.
+KDE Discover provides graphical software management.
+Flatpak configured with Flathub remote.
 
 ---
 
