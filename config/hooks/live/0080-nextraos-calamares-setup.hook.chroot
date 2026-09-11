@@ -12,7 +12,7 @@ cat > /etc/xdg/autostart/calamares.desktop << 'EOF'
 Type=Application
 Name=NextraOS Installer
 Comment=Install NextraOS to your system
-Exec=/usr/bin/calamares
+Exec=sudo /usr/bin/calamares
 Icon=nextraos-logo
 Terminal=false
 NoDisplay=false

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=NextraOS Installer
+Comment=Install NextraOS to your system
+Exec=sudo /usr/bin/calamares
+Icon=nextraos-logo
+Terminal=false
+NoDisplay=false
+Categories=System;
