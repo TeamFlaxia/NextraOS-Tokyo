@@ -1,0 +1,34 @@
+#!/bin/sh
+set -e
+
+echo "==> NextraOS: Setting up VM lifecycle management"
+
+# Create log directory
+mkdir -p /var/log
+
+# Create systemd user services directory
+mkdir -p /etc/systemd/user
+
+# Enable VM auto-suspend service
+systemctl --user enable vm-auto-suspend.service 2>/dev/null || true
+
+# Create systemd system service for VM suspend hook
+cat > /etc/systemd/system/vm-suspend-hook.service << 'EOF'
+[Unit]
+Description=VM Suspend Hook
+Before=sleep.target
+StopWhenUnneeded=yes
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/vm-suspend-hook.sh suspend
+ExecStop=/usr/local/bin/vm-suspend-hook.sh resume
+
+[Install]
+WantedBy=sleep.target
+EOF
+
+# Enable the service
+systemctl enable vm-suspend-hook.service
+
+echo "==> NextraOS: VM lifecycle management setup complete"

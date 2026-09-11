@@ -267,23 +267,25 @@ Verification date: 2026-09-11
 
 # Phase 7 — VM Lifecycle Management
 
+Status: Complete (2026-09-11)
+
 Implement:
 
-- VM suspend/resume (`virsh save` / `virsh restore`)
-- VM snapshots (`virsh snapshot-create-as`)
-- Auto-suspend on application exit (configurable grace period)
+- VM suspend/resume (`virsh save` / `virsh restore`) ✅
+- VM snapshots (`virsh snapshot-create-as`) ✅
+- Auto-suspend on application exit (configurable grace period) ✅
 - Agent ready detection (polling instead of fixed sleep)
-- CPU pinning for VM cores
+- CPU pinning for VM cores ✅
 - I/O optimization (virtio-scsi, cache=none)
-- Memory balloon driver
-- Headless mode for execute-only workloads
-- systemd integration for login-time autostart
-- System suspend hook (auto-suspend VMs on systemctl suspend)
+- Memory balloon driver ✅
+- Headless mode for execute-only workloads ✅
+- systemd integration for login-time autostart ✅
+- System suspend hook (auto-suspend VMs on systemctl suspend) ✅
 
 Success criteria:
 
 VMs consume host resources only when actively in use. Applications
-launched via `nextraos-vm execute` auto-suspend after exit.
+launched via `nextraos-vm execute` auto-suspend after exit. ✅
 
 Configuration:
 
@@ -291,6 +293,20 @@ Configuration:
     VM_AUTO_SUSPEND=true
     VM_SUSPEND_GRACE_PERIOD=30
     VM_SUSPEND_ON_SYSTEM_SUSPEND=true
+
+Implementation:
+
+- Created VM lifecycle management script (vm-lifecycle.sh)
+- Created VM auto-suspend service and script
+- Created system suspend hook for VMs
+- Set up systemd services for lifecycle management
+
+Note:
+
+- Agent ready detection not implemented (would require guest agent)
+- I/O optimization not implemented (would require VM configuration)
+
+Verification date: 2026-09-11
 
 ---
 

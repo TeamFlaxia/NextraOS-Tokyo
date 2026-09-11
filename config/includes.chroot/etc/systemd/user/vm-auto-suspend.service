@@ -1,0 +1,13 @@
+[Unit]
+Description=VM Auto-Suspend Service
+After=display-manager.service
+Requires=display-manager.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/vm-auto-suspend.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
