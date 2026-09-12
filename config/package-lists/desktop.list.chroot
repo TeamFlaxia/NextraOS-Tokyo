@@ -23,6 +23,8 @@ virt-viewer
 
 jq
 
+systemd-zram-generator
+
 flatpak
 xdg-desktop-portal
 xdg-desktop-portal-kde

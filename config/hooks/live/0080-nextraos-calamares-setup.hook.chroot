@@ -25,4 +25,18 @@ user ALL=(ALL) NOPASSWD: /usr/bin/calamares
 EOF
 chmod 440 /etc/sudoers.d/calamares
 
+# Replace default Calamares desktop file ("Install Debian" -> "NextraOS Installer")
+cat > /usr/share/applications/calamares.desktop << 'EOF'
+[Desktop Entry]
+Type=Application
+Name=NextraOS Installer
+Comment=Install NextraOS to your system
+Exec=sudo /usr/bin/calamares
+Icon=nextraos-logo
+Terminal=false
+NoDisplay=false
+Categories=System;
+EOF
+update-desktop-database /usr/share/applications 2>/dev/null || true
+
 echo "NextraOS Calamares setup complete"
