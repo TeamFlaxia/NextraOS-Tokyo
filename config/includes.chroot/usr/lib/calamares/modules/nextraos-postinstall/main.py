@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # NextraOS Post-Install Module
-# Processes ecosystem selections from packagechooser
+# Processes ecosystem selections from packagechooserq
 
 import libcalamares
 
@@ -9,7 +9,7 @@ def pretty_name():
 
 def run():
     """Process ecosystem selections and configure the installed system."""
-    selections = libcalamares.globalstorage.value("packagechooser_packagechooser")
+    selections = libcalamares.globalstorage.value("packagechooser_packagechooserq")
     
     if not selections:
         libcalamares.utils.warning("No ecosystem selections found")
@@ -20,10 +20,10 @@ def run():
     
     libcalamares.utils.debug("NextraOS post-install: selected ecosystems: {}".format(selected))
     
+    _setup_flatpak()
+
     for item in selected:
-        if item == "flatpak":
-            _setup_flatpak()
-        elif item == "android":
+        if item == "android":
             _setup_waydroid()
         elif item == "windows":
             _setup_windows_vm()

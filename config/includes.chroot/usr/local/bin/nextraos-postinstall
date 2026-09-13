@@ -18,12 +18,10 @@ has_component() {
     echo "$SELECTED_APPS" | grep -q "$1"
 }
 
-# 1. Flatpak setup
-if has_component "flatpak"; then
-    log "Setting up Flatpak..."
-    flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
-    log "Flatpak setup complete"
-fi
+# 1. Flatpak setup (always)
+log "Setting up Flatpak..."
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
+log "Flatpak setup complete"
 
 # 2. Waydroid setup (Android)
 if has_component "android"; then
