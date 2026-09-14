@@ -189,6 +189,37 @@ Container-based Android environment.
 |---|---|---|
 | /home/user/Android/ | bind mount | Android-accessible folder |
 
+## Troubleshooting
+
+### "Binder node vndbinder not found"
+
+Waydroid requires three binder device nodes: `binder`, `vndbinder`, and `hwbinder`.
+The `binder_linux` kernel module must be loaded with all three devices:
+
+```bash
+modprobe binder_linux devices="binder,hwbinder,vndbinder"
+```
+
+If using binderfs (recommended), ensure the service mounts it correctly:
+
+```bash
+mount -t binder binder /dev/binderfs
+ln -sf /dev/binderfs/* /dev/
+```
+
+Verify all nodes exist:
+
+```bash
+ls -la /dev/binder /dev/vndbinder /dev/hwbinder
+```
+
+### QEMU/KVM specific
+
+The QEMU environment must have:
+- A kernel with `binder_linux` module support
+- KVM enabled for acceptable performance
+- Sufficient RAM (4GB+ recommended for Waydroid)
+
 ## Limitations
 
 - **Does not work in live mode** (installed system only)

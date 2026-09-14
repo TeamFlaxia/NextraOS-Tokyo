@@ -27,6 +27,14 @@ log "Flatpak setup complete"
 if has_component "android"; then
     log "Setting up Waydroid..."
     if command -v waydroid &>/dev/null; then
+        # Ensure binder nodes are available
+        if ! ls /dev/binder /dev/vndbinder /dev/hwbinder >/dev/null 2>&1; then
+            log "Setting up binder nodes..."
+            modprobe binder_linux devices="binder,hwbinder,vndbinder" 2>/dev/null || true
+            mkdir -p /dev/binderfs
+            mount -t binder binder /dev/binderfs 2>/dev/null || true
+            ln -sf /dev/binderfs/* /dev/ 2>/dev/null || true
+        fi
         waydroid init 2>/dev/null || log "Waydroid init failed (may need manual setup)"
         log "Waydroid setup complete"
     else

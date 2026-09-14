@@ -5,7 +5,7 @@ Before=waydroid-container.service
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c 'modprobe binder_linux && mkdir -p /dev/binderfs && mount -t binder binder /dev/binderfs'
+ExecStart=/bin/bash -c 'modprobe binder_linux devices="binder,hwbinder,vndbinder" && mkdir -p /dev/binderfs && mount -t binder binder /dev/binderfs && ln -sf /dev/binderfs/* /dev/'
 ExecStop=/bin/bash -c 'umount /dev/binderfs || true'
 RemainAfterExit=yes
 
