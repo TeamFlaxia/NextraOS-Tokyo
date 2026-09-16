@@ -1,0 +1,5 @@
+---
+type: job
+name: waydroid-image-download
+interface: python
+script: main.py

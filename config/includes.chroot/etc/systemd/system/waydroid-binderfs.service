@@ -5,7 +5,19 @@ Before=waydroid-container.service
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c 'modprobe binder_linux devices="binder,hwbinder,vndbinder" && mkdir -p /dev/binderfs && mount -t binder binder /dev/binderfs && ln -sf /dev/binderfs/* /dev/'
+ExecStart=/bin/bash -c ' \
+    mkdir -p /dev/binderfs && \
+    if mountpoint -q /dev/binderfs 2>/dev/null; then \
+        echo "binderfs already mounted"; \
+    elif mount -t binder binder /dev/binderfs 2>/dev/null; then \
+        echo "binderfs mounted (kernel built-in)"; \
+    elif modprobe binder_linux devices="binder,hwbinder,vndbinder" 2>/dev/null && \
+         mount -t binder binder /dev/binderfs 2>/dev/null; then \
+        echo "binderfs mounted (module loaded)"; \
+    else \
+        echo "WARNING: Could not setup binder (SecureBoot or missing kernel support)"; \
+    fi && \
+    ln -sf /dev/binderfs/* /dev/ 2>/dev/null || true'
 ExecStop=/bin/bash -c 'umount /dev/binderfs || true'
 RemainAfterExit=yes
 

@@ -92,6 +92,15 @@ Item {
                             color: "#666666"
                             wrapMode: Text.WordWrap
                         }
+
+                        Text {
+                            width: parent.width
+                            visible: androidCheck.checked
+                            text: qsTr("~1.4 GB will be downloaded during installation (requires network)")
+                            font.pointSize: 8
+                            color: "#0bd1f4"
+                            wrapMode: Text.WordWrap
+                        }
                     }
                 }
             }

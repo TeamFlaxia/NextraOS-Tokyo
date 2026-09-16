@@ -23,9 +23,7 @@ def run():
     _setup_flatpak()
 
     for item in selected:
-        if item == "android":
-            _setup_waydroid()
-        elif item == "windows":
+        if item == "windows":
             _setup_windows_vm()
         elif item == "macos":
             _setup_macos_vm()
@@ -42,14 +40,6 @@ def _setup_flatpak():
         libcalamares.utils.debug("Flatpak Flathub configured")
     except Exception as e:
         libcalamares.utils.warning("Flatpak setup failed: {}".format(str(e)))
-
-def _setup_waydroid():
-    """Install and configure Waydroid."""
-    try:
-        libcalamares.utils.check_target_env_call(["apt-get", "install", "-y", "waydroid"])
-        libcalamares.utils.debug("Waydroid installed")
-    except Exception as e:
-        libcalamares.utils.warning("Waydroid installation failed: {}".format(str(e)))
 
 def _setup_windows_vm():
     """Configure Windows VM support."""
