@@ -62,5 +62,18 @@ fi
 log "Enabling NextraOS services..."
 systemctl enable nextraos-vm.target 2>/dev/null || true
 
+# 6. Remove installer from installed system
+log "Removing installer..."
+rm -f /etc/xdg/autostart/calamares.desktop
+rm -f /usr/share/applications/calamares.desktop
+rm -f /usr/share/applications/nextraos-installer.desktop
+rm -f /etc/sudoers.d/calamares
+rm -f /usr/local/bin/nextraos-postinstall
+rm -rf /usr/lib/calamares/modules/nextraos-postinstall
+rm -rf /usr/lib/calamares/modules/waydroid-image-download
+rm -rf /etc/calamares
+update-desktop-database /usr/share/applications 2>/dev/null || true
+log "Installer removed"
+
 log "NextraOS post-install complete"
 exit 0

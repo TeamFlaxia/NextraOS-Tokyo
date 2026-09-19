@@ -2,6 +2,7 @@
 # NextraOS Post-Install Module
 # Processes ecosystem selections from packagechooserq
 
+import os
 import libcalamares
 
 def pretty_name():
@@ -27,6 +28,8 @@ def run():
             _setup_windows_vm()
         elif item == "macos":
             _setup_macos_vm()
+
+    _remove_installer()
     
     return None
 
@@ -56,3 +59,50 @@ def _setup_macos_vm():
         libcalamares.utils.debug("libvirtd enabled for macOS VM (experimental)")
     except Exception as e:
         libcalamares.utils.warning("macOS VM setup failed: {}".format(str(e)))
+
+def _remove_installer():
+    """Remove Calamares installer from the installed system."""
+    root = libcalamares.globalstorage.value("rootMountPoint")
+    if not root:
+        libcalamares.utils.warning("No root mount point found, skipping installer removal")
+        return
+
+    files_to_remove = [
+        os.path.join(root, "etc/xdg/autostart/calamares.desktop"),
+        os.path.join(root, "usr/share/applications/calamares.desktop"),
+        os.path.join(root, "usr/share/applications/nextraos-installer.desktop"),
+        os.path.join(root, "etc/sudoers.d/calamares"),
+        os.path.join(root, "usr/local/bin/nextraos-postinstall"),
+    ]
+
+    dirs_to_remove = [
+        os.path.join(root, "usr/lib/calamares/modules/nextraos-postinstall"),
+        os.path.join(root, "usr/lib/calamares/modules/waydroid-image-download"),
+        os.path.join(root, "etc/calamares"),
+    ]
+
+    for path in files_to_remove:
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+                libcalamares.utils.debug("Removed {}".format(path))
+        except Exception as e:
+            libcalamares.utils.warning("Failed to remove {}: {}".format(path, str(e)))
+
+    for path in dirs_to_remove:
+        try:
+            if os.path.exists(path):
+                import shutil
+                shutil.rmtree(path)
+                libcalamares.utils.debug("Removed {}".format(path))
+        except Exception as e:
+            libcalamares.utils.warning("Failed to remove {}: {}".format(path, str(e)))
+
+    try:
+        libcalamares.utils.check_target_env_call(
+            ["update-desktop-database", "/usr/share/applications"]
+        )
+    except Exception:
+        pass
+
+    libcalamares.utils.debug("NextraOS installer removed from installed system")
