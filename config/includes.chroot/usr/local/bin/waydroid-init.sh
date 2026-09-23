@@ -85,14 +85,26 @@ setup_binder || true
 
 # --- Waydroid Initialization ---
 
+# System type chosen at install time (GAPPS or VANILLA); default VANILLA
+SYSTEM_TYPE_FILE="/etc/waydroid/system_type"
+WAYDROID_SYSTEM_TYPE="VANILLA"
+if [ -f "$SYSTEM_TYPE_FILE" ]; then
+    WAYDROID_SYSTEM_TYPE=$(tr -d '[:space:]' < "$SYSTEM_TYPE_FILE" 2>/dev/null || echo "VANILLA")
+    case "$WAYDROID_SYSTEM_TYPE" in
+        GAPPS|VANILLA) ;;
+        *) WAYDROID_SYSTEM_TYPE="VANILLA" ;;
+    esac
+fi
+echo "Waydroid system type: $WAYDROID_SYSTEM_TYPE"
+
 # Initialize Waydroid (uses pre-downloaded images if available)
 WAYDROID_EXTRA_IMAGES="/etc/waydroid-extra/images"
 if [ -d "$WAYDROID_EXTRA_IMAGES" ] && [ "$(ls -A $WAYDROID_EXTRA_IMAGES 2>/dev/null)" ]; then
     echo "Using pre-downloaded Waydroid images from $WAYDROID_EXTRA_IMAGES"
-    waydroid init -f
+    waydroid init -f -s "$WAYDROID_SYSTEM_TYPE"
 else
     echo "No pre-downloaded images found, downloading from internet..."
-    waydroid init
+    waydroid init -s "$WAYDROID_SYSTEM_TYPE"
 fi
 
 # --- Multi-window Mode ---

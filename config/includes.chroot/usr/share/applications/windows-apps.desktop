@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Windows Apps
 Comment=Launch Windows applications
-Exec=/usr/local/bin/windows-vm.sh connect
+Exec=nextraos-vm connect windows
 Icon=windows-apps
 Terminal=false
 Type=Application

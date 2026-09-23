@@ -18,14 +18,26 @@ has_component() {
     echo "$SELECTED_APPS" | grep -q "$1"
 }
 
+# Resolve Android system type from selection tokens
+get_android_system_type() {
+    case "$SELECTED_APPS" in
+        *android-gapps*) echo "GAPPS" ;;
+        *android-vanilla*|*android*) echo "VANILLA" ;;
+        *) echo "" ;;
+    esac
+}
+
 # 1. Flatpak setup (always)
 log "Setting up Flatpak..."
 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
 log "Flatpak setup complete"
 
 # 2. Waydroid setup (Android)
-if has_component "android"; then
-    log "Setting up Waydroid..."
+ANDROID_TYPE=$(get_android_system_type)
+if [ -n "$ANDROID_TYPE" ]; then
+    log "Setting up Waydroid (system type: $ANDROID_TYPE)..."
+    mkdir -p /etc/waydroid
+    printf '%s\n' "$ANDROID_TYPE" > /etc/waydroid/system_type
     if command -v waydroid &>/dev/null; then
         # Ensure binder nodes are available
         if ! ls /dev/binder /dev/vndbinder /dev/hwbinder >/dev/null 2>&1; then
@@ -35,7 +47,11 @@ if has_component "android"; then
             mount -t binder binder /dev/binderfs 2>/dev/null || true
             ln -sf /dev/binderfs/* /dev/ 2>/dev/null || true
         fi
-        waydroid init 2>/dev/null || log "Waydroid init failed (may need manual setup)"
+        if [ -f /etc/waydroid-extra/images/system.img ] || [ -f /var/lib/waydroid/images/system.img ]; then
+            waydroid init -f -s "$ANDROID_TYPE" 2>/dev/null || log "Waydroid init failed (may need manual setup)"
+        else
+            waydroid init -s "$ANDROID_TYPE" 2>/dev/null || log "Waydroid init failed (may need manual setup)"
+        fi
         log "Waydroid setup complete"
     else
         log "Waydroid not installed, skipping"

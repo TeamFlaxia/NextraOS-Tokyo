@@ -9,7 +9,7 @@ if [ -z "$EXECUTABLE" ]; then
 fi
 
 # Check if macOS VM is available
-if ! nextraos-vm status macos >/dev/null 2>&1; then
+if ! virsh dominfo macos >/dev/null 2>&1; then
     echo "==> macOS VM is not available"
     echo "    Run: nextraos-vm create macos"
     echo "    Then: nextraos-vm download-iso macos"

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # NextraOS Waydroid Image Download Module
-# Downloads Waydroid GAPPS system and vendor images during installation
+# Downloads Waydroid system and vendor images during installation
+# Supports GAPPS and VANILLA system types selected in packagechooserq
 
 import json
 import libcalamares
@@ -8,7 +9,10 @@ import os
 import subprocess
 import tempfile
 
-WAYDROID_OTA_SYSTEM = "https://ota.waydro.id/system/lineage/waydroid_x86_64/GAPPS.json"
+WAYDROID_OTA_SYSTEM = {
+    "GAPPS": "https://ota.waydro.id/system/lineage/waydroid_x86_64/GAPPS.json",
+    "VANILLA": "https://ota.waydro.id/system/lineage/waydroid_x86_64/VANILLA.json",
+}
 WAYDROID_OTA_VENDOR = "https://ota.waydro.id/vendor/waydroid_x86_64/MAINLINE.json"
 
 
@@ -16,10 +20,28 @@ def pretty_name():
     return "Waydroid Image Download"
 
 
+def _parse_android_system_type(selections):
+    """Return GAPPS or VANILLA from packageChoice, or None if Android not selected.
+
+    Legacy token "android" maps to VANILLA (matches waydroid upstream default).
+    """
+    if not selections:
+        return None
+    tokens = [s.strip() for s in selections.split(",") if s.strip()]
+    if "android-gapps" in tokens:
+        return "GAPPS"
+    if "android-vanilla" in tokens:
+        return "VANILLA"
+    if "android" in tokens:
+        return "VANILLA"
+    return None
+
+
 def run():
-    """Download Waydroid GAPPS images if Android ecosystem was selected."""
+    """Download Waydroid images if Android ecosystem was selected."""
     selections = libcalamares.globalstorage.value("packagechooser_packagechooserq")
-    if not selections or "android" not in selections:
+    system_type = _parse_android_system_type(selections)
+    if not system_type:
         libcalamares.utils.debug("Android not selected, skipping Waydroid image download")
         return None
 
@@ -29,6 +51,20 @@ def run():
         return None
 
     target_images_dir = os.path.join(root_mount, "etc/waydroid-extra/images")
+    system_type_file = os.path.join(root_mount, "etc/waydroid/system_type")
+
+    # Persist choice for first-boot waydroid-init.sh
+    try:
+        os.makedirs(os.path.dirname(system_type_file), exist_ok=True)
+        with open(system_type_file, "w") as f:
+            f.write(system_type + "\n")
+        libcalamares.utils.debug(
+            "Persisted Waydroid system type: {}".format(system_type)
+        )
+    except Exception as e:
+        libcalamares.utils.warning(
+            "Failed to write system_type file: {}".format(str(e))
+        )
 
     # Check network connectivity
     if not _check_network():
@@ -37,20 +73,21 @@ def run():
         )
         return None
 
-    libcalamares.utils.debug("Downloading Waydroid GAPPS images...")
+    libcalamares.utils.debug(
+        "Downloading Waydroid {} images...".format(system_type)
+    )
 
-    # Create target directory
     os.makedirs(target_images_dir, exist_ok=True)
 
-    # Download system image
+    system_ota = WAYDROID_OTA_SYSTEM[system_type]
+
     libcalamares.utils.debug("Fetching system image info from OTA...")
-    system_url = _fetch_image_url(WAYDROID_OTA_SYSTEM)
+    system_url = _fetch_image_url(system_ota)
     if system_url:
         _download_and_extract(system_url, target_images_dir, "system")
     else:
         libcalamares.utils.warning("Failed to get system image URL from OTA")
 
-    # Download vendor image
     libcalamares.utils.debug("Fetching vendor image info from OTA...")
     vendor_url = _fetch_image_url(WAYDROID_OTA_VENDOR)
     if vendor_url:
@@ -58,10 +95,11 @@ def run():
     else:
         libcalamares.utils.warning("Failed to get vendor image URL from OTA")
 
-    # Initialize Waydroid with local images
     libcalamares.utils.debug("Initializing Waydroid with local images...")
     try:
-        libcalamares.utils.check_target_env_call(["waydroid", "init", "-f"])
+        libcalamares.utils.check_target_env_call(
+            ["waydroid", "init", "-f", "-s", system_type]
+        )
         libcalamares.utils.debug("Waydroid initialized with pre-downloaded images")
     except Exception as e:
         libcalamares.utils.warning(
@@ -106,7 +144,6 @@ def _fetch_image_url(ota_url):
             libcalamares.utils.warning("Empty OTA response from {}".format(ota_url))
             return None
 
-        # Get the latest image (first in list)
         latest = response[0]
         url = latest.get("url")
         filename = latest.get("filename", "unknown")
@@ -135,14 +172,13 @@ def _download_and_extract(url, target_dir, label):
 
             libcalamares.utils.debug("Downloading {} image...".format(label))
 
-            # Download with curl
             result = subprocess.run(
                 [
                     "curl",
                     "-L",
                     "--progress-bar",
                     "--max-time",
-                    "1800",  # 30 minute timeout
+                    "1800",
                     "-o",
                     zip_path,
                     url,
@@ -161,7 +197,6 @@ def _download_and_extract(url, target_dir, label):
                 "Extracting {} image to {}...".format(label, target_dir)
             )
 
-            # Extract zip
             result = subprocess.run(
                 ["unzip", "-o", zip_path, "-d", target_dir],
                 capture_output=True,

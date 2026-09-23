@@ -18,7 +18,8 @@ fi
 
 # Download ISO if not present
 if ! ls "$HOME/.local/share/nextraos/vms/windows/"*.iso >/dev/null 2>&1; then
-    echo "==> Downloading Windows ISO..."
+    echo "==> Downloading Windows ISO from Microsoft CDN..."
+    echo "    Review Microsoft Software License Terms (EULA) before use."
     nextraos-vm download-iso windows
 fi
 
@@ -29,6 +30,6 @@ if ! virsh dominfo windows >/dev/null 2>&1; then
 fi
 
 # Launch application in VM (auto-suspend enabled by default)
-nextraos-vm execute "$EXECUTABLE"
+nextraos-vm execute windows "$EXECUTABLE"
 
 echo "==> Connect via SPICE: spice://localhost:5930"

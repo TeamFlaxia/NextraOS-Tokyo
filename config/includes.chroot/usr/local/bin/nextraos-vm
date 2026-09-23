@@ -28,6 +28,7 @@ Actions:
   list                          List all VMs
   create <windows|macos>        Create VM disk
   download-iso <windows|macos>  Download OS installer
+  connect <windows|macos>       Ensure VM running and open SPICE viewer
   execute [options] <windows|macos> <app>  Execute app in VM
   suspend <windows|macos>       Suspend VM (save state, free RAM)
   resume <windows|macos>        Resume VM from saved state
@@ -46,10 +47,12 @@ Options (for execute):
 Examples:
   nextraos-vm create windows
   nextraos-vm start windows
+  nextraos-vm connect windows
   nextraos-vm execute windows "C:\Program Files\App\app.exe"
   nextraos-vm execute --headless windows "C:\app.exe"
   nextraos-vm suspend windows
   nextraos-vm resume windows
+  nextraos-vm connect macos
   nextraos-vm snapshot macos "before-update"
 EOF
     exit 1
@@ -308,6 +311,58 @@ get_hugepages_xml() {
 HUGEXML
 }
 
+# --- SPICE connect helper ---
+cmd_vm_connect() {
+    local TARGET="$1"
+
+    case "$TARGET" in
+        windows)
+            if ! virsh dominfo "$VM_WIN_NAME" >/dev/null 2>&1; then
+                if [ ! -f "$VM_WIN_DISK" ]; then
+                    echo "==> Windows VM disk not found. Run: nextraos-vm create windows"
+                    echo "    Then: nextraos-vm download-iso windows"
+                    exit 1
+                fi
+                echo "==> Starting Windows VM..."
+                cmd_windows_start
+            fi
+            SPICE_PORT="$VM_WIN_SPICE"
+            ;;
+        macos)
+            if ! virsh dominfo "$VM_MAC_NAME" >/dev/null 2>&1; then
+                if [ ! -f "$VM_MAC_DISK" ]; then
+                    echo "==> macOS VM disk not found. Run: nextraos-vm create macos"
+                    echo "    Then: nextraos-vm download-iso macos"
+                    exit 1
+                fi
+                echo "==> Starting macOS VM..."
+                cmd_macos_start
+            fi
+            SPICE_PORT="$VM_MAC_SPICE"
+            ;;
+        *)
+            echo "Specify: windows or macos"
+            usage
+            ;;
+    esac
+
+    VIEWER=""
+    for candidate in remote-viewer virt-viewer; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            VIEWER="$candidate"
+            break
+        fi
+    done
+    if [ -z "$VIEWER" ]; then
+        echo "==> No SPICE viewer found. Install with: sudo apt install virt-viewer"
+        echo "==> SPICE endpoint: spice://localhost:$SPICE_PORT"
+        exit 1
+    fi
+
+    echo "==> Connecting via SPICE: spice://localhost:$SPICE_PORT"
+    "$VIEWER" "spice://localhost:$SPICE_PORT" >/dev/null 2>&1 &
+}
+
 # --- Windows VM ---
 VM_WIN_NAME="windows"
 VM_WIN_DIR="$HOME/.local/share/nextraos/vms/windows"
@@ -332,7 +387,9 @@ cmd_windows_download_iso() {
         echo "==> Windows ISO already exists: $ISO_FILE"
         return 0
     fi
-    echo "==> Downloading Windows 11 ISO from Microsoft..."
+    echo "==> Downloading Windows 11 ISO from Microsoft CDN..."
+    echo "    Review Microsoft Software License Terms (EULA) before use."
+    echo "    NextraOS is not affiliated with Microsoft."
     curl -L -o "$ISO_FILE" \
         "https://software-download.microsoft.com/download/sg/17763.5576.231006-0600.23H2_RELEASE_SVC_PROD2_CLIENT64EN-US_JPEG.iso" || {
         echo "==> Download failed. Place a Windows ISO manually in: $VM_WIN_DIR/"
@@ -499,6 +556,9 @@ cmd_macos_download_iso() {
     fi
     echo "==> Downloading macOS Recovery image..."
     echo "    This uses Apple's public CDN for recovery images."
+    echo "    Review the Apple Software License Agreement (EULA) before use."
+    echo "    Virtualization on non-Apple hardware may be restricted by Apple's EULA."
+    echo "    NextraOS is not affiliated with Apple."
 
     if command -v python3 >/dev/null 2>&1; then
         cd "$VM_MAC_DIR"
@@ -754,6 +814,9 @@ case "$ACTION" in
             macos)   cmd_macos_download_iso ;;
             *)       echo "Specify: windows or macos"; usage ;;
         esac ;;
+    connect)
+        cmd_vm_connect "$TARGET"
+        ;;
     execute)
         shift
         parse_execute_opts "$@"

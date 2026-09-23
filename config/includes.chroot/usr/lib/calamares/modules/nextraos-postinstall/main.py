@@ -18,10 +18,14 @@ def run():
     
     # selections is a comma-separated string of selected IDs
     selected = [s.strip() for s in selections.split(",") if s.strip()]
-    
+
     libcalamares.utils.debug("NextraOS post-install: selected ecosystems: {}".format(selected))
-    
+
     _setup_flatpak()
+
+    android_type = _android_system_type(selected)
+    if android_type:
+        _persist_android_system_type(android_type)
 
     for item in selected:
         if item == "windows":
@@ -30,8 +34,34 @@ def run():
             _setup_macos_vm()
 
     _remove_installer()
-    
+
     return None
+
+def _android_system_type(selected):
+    """Return GAPPS/VANILLA for Android tokens, or None."""
+    if "android-gapps" in selected:
+        return "GAPPS"
+    if "android-vanilla" in selected or "android" in selected:
+        return "VANILLA"
+    return None
+
+def _persist_android_system_type(system_type):
+    """Write /etc/waydroid/system_type for first-boot init."""
+    root = libcalamares.globalstorage.value("rootMountPoint")
+    if not root:
+        return
+    path = os.path.join(root, "etc/waydroid/system_type")
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            f.write(system_type + "\n")
+        libcalamares.utils.debug(
+            "Android system type persisted: {}".format(system_type)
+        )
+    except Exception as e:
+        libcalamares.utils.warning(
+            "Failed to persist Android system type: {}".format(str(e))
+        )
 
 def _setup_flatpak():
     """Configure Flatpak with Flathub repository."""

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Script to handle Windows executables
-# This script is called when a user tries to open a .exe or .msi file
+# Called when a user tries to open a .exe or .msi file
 
 set -e
 
@@ -16,31 +16,22 @@ if [ ! -f "$FILE" ]; then
     exit 1
 fi
 
-# Check if Windows VM is running
-if ! virsh domstate windows-vm 2>/dev/null | grep -q "running"; then
-    echo "Windows VM is not running."
-    echo "Starting Windows VM..."
-    virsh start windows-vm 2>/dev/null || {
-        echo "Failed to start Windows VM."
-        echo "Please create a Windows VM first using virt-manager."
-        exit 1
-    }
-    echo "Waiting for Windows VM to start..."
-    sleep 10
+# Ensure disk exists, then launch via the canonical VM manager
+if [ ! -f "$HOME/.local/share/nextraos/vms/windows/disk.qcow2" ]; then
+    echo "==> Creating Windows VM disk..."
+    nextraos-vm create windows
 fi
 
-# Get the SPICE port
-SPICE_PORT=$(virsh domdisplay windows-vm 2>/dev/null | grep -oP 'spice://\K[^:]+')
-
-if [ -z "$SPICE_PORT" ]; then
-    echo "Cannot determine SPICE port."
+if ! ls "$HOME/.local/share/nextraos/vms/windows/"*.iso >/dev/null 2>&1; then
+    echo "==> Windows ISO not found. Run: nextraos-vm download-iso windows"
+    echo "    (Downloads from the Microsoft CDN — review Microsoft's EULA first.)"
     exit 1
 fi
 
-echo "Windows VM is running."
-echo "To run Windows applications:"
-echo "1. Connect to the VM using virt-manager or remote-viewer"
-echo "2. Copy the file to the VM using shared folder or SPICE clipboard"
-echo "3. Run the application inside the VM"
-echo ""
-echo "SPICE Connection: spice://localhost:$SPICE_PORT"
+if ! virsh dominfo windows >/dev/null 2>&1; then
+    echo "==> Windows VM is not running. Starting..."
+    nextraos-vm start windows
+fi
+
+echo "==> Launching in Windows VM: $FILE"
+nextraos-vm execute windows "$FILE"
