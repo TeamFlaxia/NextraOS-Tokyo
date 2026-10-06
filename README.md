@@ -118,18 +118,23 @@ This produces `dist/nextraos-live-amd64.iso`.
 |---|---|
 | Phase 0 — Research | ✅ Complete |
 | Phase 1 — Minimal ISO | ✅ Complete (2026-09-06) |
-| Phase 2 — Installer | Pending |
-| Phase 3 — Native Application Layer | Pending |
-| Phase 4 — Windows Compatibility | Pending |
-| Phase 5 — Android | Pending |
-| Phase 6 — Windows VM | Pending |
-| Phase 7 — Compatibility Resolver | Pending |
-| Phase 8 — macOS Experimental | Pending |
-| Phase 9 — Production Hardening | Pending |
+| Phase 2 — Installer | ✅ Complete (2026-09-11) |
+| Phase 3 — Native Application Layer | ✅ Complete (2026-09-11) |
+| Phase 4 — Android | ✅ Complete (2026-09-11) |
+| Phase 5 — Windows VM Integration | ✅ Complete (2026-09-11) |
+| Phase 6 — macOS Experimental | ✅ Complete (2026-09-11; experimental) |
+| Phase 7 — VM Lifecycle Management | ⚠️ Partially complete (2026-09-11) |
+| Phase 8 — Production Hardening | ✅ Complete (2026-09-11) |
+| Compatibility resolver | Long-term goal; not implemented |
 
-Phase 1 produces a bootable Debian Trixie-based KDE Plasma 6
-Wayland Live ISO with Flatpak and VSCodium included.
-Boots successfully in QEMU with UEFI.
+This summary follows the phase statuses in [docs/ROADMAP.md](docs/ROADMAP.md).
+“Complete” reflects the roadmap's stated scope, not production readiness;
+see the roadmap for verification details and known limitations. The compatibility
+resolver is a long-term goal, not a numbered or completed phase.
+
+Phase 1 delivered a bootable Debian Trixie-based KDE Plasma 6
+Wayland Live ISO with Flatpak and VSCodium included. It was tested in
+QEMU with UEFI; see [docs/ROADMAP.md](docs/ROADMAP.md#L30) for test scope.
 
 See:
 

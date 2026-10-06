@@ -267,7 +267,7 @@ Verification date: 2026-09-11
 
 # Phase 7 — VM Lifecycle Management
 
-Status: Complete (2026-09-11)
+Status: Partially complete (2026-09-11)
 
 Implement:
 
