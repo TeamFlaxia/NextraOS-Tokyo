@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+
+# greetd runs tuigreet as this unprivileged user; Debian's package creates _greetd,
+# which is a separate daemon account and must not be reused for the greeter UI.
+if ! getent passwd greeter >/dev/null; then
+    adduser --system --group --no-create-home --disabled-password \
+        --shell /usr/sbin/nologin greeter
+fi

@@ -1,0 +1,5 @@
+nextraos-niri (26.04-1) trixie; urgency=medium
+
+  * Package pinned upstream Niri v26.04 for the NextraOS desktop.
+
+ -- NextraOS Project <nextraos@example.invalid>  Sun, 11 Oct 2026 00:00:00 +0000

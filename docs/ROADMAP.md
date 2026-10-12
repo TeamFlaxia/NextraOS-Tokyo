@@ -1,355 +1,103 @@
-# NextraOS Roadmap
+# NextraOS Tokyo Roadmap
 
-## Phase 0 — Research
+This roadmap follows [`addinfo.md`](../addinfo.md). The current KDE-based live-build image is a historical prototype, not the target desktop. “Implemented” is not the same as “verified”: the reversible Niri smoke profile now has QEMU evidence for rendering and recovery, while unresolved desktop, memory and persistence gates remain tracked below.
 
-Status: Complete
+## Phase 0 — Reproducible baseline
 
-Research:
+**Status: In progress**
 
-- Debian Trixie
-- live-build
-- KDE Plasma
-- Wayland
-- PipeWire
-- NetworkManager
-- Waydroid
-- QEMU
-- KVM
-- SPICE
-- OpenCore
-- systemd
-- desktop integration
+- Pin Debian Trixie package inputs and document external package trust.
+- Build a minimal Debian/AMD64 baseline with a reproducible build procedure.
+- Establish a QEMU baseline and collect boot and idle-memory measurements.
+- Verify which services start by default.
 
-Deliverable:
+Current work: the repository has a static test entrypoint and an idle-memory collector; neither substitutes for the baseline's repeated boot/service/memory measurements. Niri has no compositor package in Debian Trixie, but the pinned project package has built in a Trixie/AMD64 container and passed all 195 upstream tests. Noctalia v5 has an external Trixie APT archive; its third-party trust and versioning are pinned for the disposable test profile, not treated as Debian security support.
 
-    docs/RESEARCH.md
-    docs/DESKTOP-INTEGRATION.md
+## Phase 1 — Niri + Noctalia Wayland desktop
 
----
+**Status: Fresh Niri smoke ISO boots UEFI and renders Niri + Noctalia under headless Weston/llvmpipe; VT resume and compositor-failure relogin verified; Stage 1 remains partial**
 
-# Phase 1 — Minimal ISO
+- Build and package Niri from a pinned upstream release for Debian Trixie/AMD64.
+- Install a pinned Noctalia v5 build and its reviewed dependencies.
+- Provide a safe login/session start, terminal, app launcher, file manager, networking controls, portals, audio, shutdown and recovery behavior.
+- Boot and test the session in QEMU before removing the KDE prototype fallback.
 
-Status: Complete (2026-09-06)
+Acceptance: clean login to Niri + Noctalia, functional network/audio/portals, and safe behavior after logout or compositor failure.
 
-Goal:
+Current evidence by gate (the phase remains unaccepted):
 
-Boot NextraOS in QEMU.
+| Gate | Evidence observed | State |
+| --- | --- | --- |
+| UEFI boot and login | Freshly rebuilt smoke ISO booted through the live menu (Enter sent via QMP for headless boot), reached tuigreet, and accepted serial `user`/`live` login | Verified in fresh ISO |
+| Niri renderer/output | Fresh ISO: Niri v26.04 used guest `/dev/dri/renderD128`, initialized `/dev/dri/card0`, and exposed `Virtual-1` at 1280×800 | Verified in fresh ISO/QEMU |
+| VT pause/resume | Ctrl+Alt+F2 then Ctrl+Alt+F7 returned to the session; output and Noctalia layers stayed active, and the Niri journal contained no libseat EAGAIN | Verified once in fresh ISO |
+| Visible graphics / Noctalia shell | Fresh ISO layer IPC listed Noctalia wallpaper, top bar, click shield and panel; `screenshot-screen` captured the rendered desktop | Verified; [fresh-ISO screenshot](assets/niri-weston-launcher.png) |
+| Launcher and app launch | Fresh ISO: Noctalia launcher opened via IPC; Niri reported the `foot` surface and the screenshot shows both | Verified in fresh smoke ISO |
+| Portals | D-Bus `Peer.Ping` activated a portal service | Partial: file chooser/screencast workflows not tested |
+| Audio | PipeWire enumerated `Dummy Output`; host QEMU SDL/ALSA had no default PCM | Partial: playback not verified |
+| Networking | `ping -c 1 -W 5 1.1.1.1` succeeded with 0% packet loss | Verified for basic guest traffic |
+| Compositor-failure recovery | Killing `niri.service` returned greetd to its greeter; `noctalia.service` reached `failed/timeout` after the 5-second stop timeout with no process left; relogin restarted Niri and Noctalia | Verified once in fresh ISO |
+| Shutdown | A prior guest console `poweroff` shut QEMU down; user-facing shell shutdown remains untested | Partial |
 
-Components:
+The default `tools/run-qemu` mode requests `virtio-vga-gl` and SDL GL. Direct GLX/GTK GL are unavailable on this host, which has no `/dev/dri` or `/dev/kvm`; earlier non-GL VirtIO/Bochs runs correctly failed Niri's renderer requirement. A working software-only render path was found: Mesa surfaceless llvmpipe drives Weston 14's headless GL backend, and QEMU SDL runs inside Weston with `SDL_VIDEODRIVER=wayland`, `LIBGL_ALWAYS_SOFTWARE=1`, and `virtio-vga-gl` under TCG. The fresh smoke ISO pauses at its live boot menu, so headless runs must send Enter through QMP; its `console=ttyS0` option then provides a serial login and guest command channel. In that guest, Niri v26.04 initialized `/dev/dri/renderD128` and `/dev/dri/card0`, brought up `Virtual-1` at 1280×800, and produced Noctalia layer-shell surfaces. Niri's in-guest `screenshot-screen` action captured the launcher, wallpaper, top bar and a Foot window; QEMU's QMP `screendump` still reports `no surface` for the GL output. This headless workaround proves rendering without a physical GPU, but does not qualify native-GPU performance. The earlier libseat EAGAIN was not reproduced during the GL/virgl VT pause/resume run; the non-GL-path error's root cause remains unproven.
 
-- Debian Trixie (13.0)
-- KDE Plasma 6.3.6 (Wayland)
-- SDDM 0.21.0
-- PipeWire 1.4.2 + WirePlumber 0.5.8
-- NetworkManager 1.52.1
-- Konsole 25.04.2 (terminal)
-- Dolphin 25.04.3 (file manager)
-- KDE System Settings (via kde-standard)
-- Firefox ESR 140.15.0
-- Flatpak + xdg-desktop-portal-kde
-- VSCodium (codium, via official repo)
+The Niri v26.04 package recipe is under `packages/nextraos-niri/`; a fresh Trixie/AMD64 container build passed all 195 upstream tests. A second Trixie container installed the `.deb`, resolved declared runtime dependencies, and reported the pinned commit with `niri --version`. Noctalia v5's repository key, pinned package hash, dependency install, CLI, and current project TOML config validation were verified in separate Trixie containers; `nextraos-config.kdl` also passes the pinned Niri parser. The reversible `build/build-niri-test-iso` profile uses a chroot-only signed Noctalia source and replaces the desktop list only in its disposable staging copy. Its Niri config starts a user `noctalia.service` bound to `niri.service` with a bounded stop timeout: on the fresh ISO, a compositor SIGKILL returned greetd, the unit reached `failed/timeout` at five seconds with no lingering process, and relogin started Niri and Noctalia successfully. Portal workflows, actual audio playback, shell-driven shutdown, persistence, and 4/8/16 GiB memory acceptance remain open. The host's QEMU SDL audio backend has no ALSA default device and the guest reports `Dummy Output`, so do not infer playback from PipeWire startup. The root KDE desktop package list remains selected; shared Waydroid/libvirt lifecycle hooks have separate on-demand changes.
 
-Success criteria:
+## Phase 2 — Memory and startup optimization
 
-- ISO builds ✅
-- ISO boots ✅
-- graphical session starts ✅
-- networking works ✅ (NetworkManager icon in tray)
-- audio works ⚠️ (PipeWire installed, not tested interactively)
-- shutdown/reboot works ⚠️ (standard KDE, not tested interactively)
+**Status: Not measured**
 
-Verification date: 2026-09-06
+- Use identical 1920×1080 single-display, no-user-app conditions.
+- Test 4, 8 and 16 GiB profiles across multiple cold boots.
+- Record `MemTotal - MemAvailable`, PSS, swap, zram, PSI and boot timing at 5/30/60 minutes.
+- Meet idle host memory below 1024 MiB; 850 MiB remains a development goal.
 
-Tested in QEMU with UEFI boot (OVMF), 4GB RAM, 2 CPUs, KVM.
+Acceptance: publish raw samples and median/range per profile. No cache dropping, misleading swap accounting, security reductions, or usability regression.
 
-Note: QEMU monitor input does not reach the Wayland compositor
-reliably, so interactive app-launch testing requires a graphical
-display (VNC viewer, Spice, or local display).
+## Phase 3 — Android
 
----
+**Status: Integration scaffold exists; runtime test pending**
 
-# Phase 2 — Installer
+- Integrate Waydroid and binder only when requested.
+- Download images only on user-selected install or first launch, with clear progress and errors.
+- Verify APK install, app discovery, Wayland windows, clipboard/filesystem boundaries and persistent app data.
 
-Status: Complete (2026-09-11)
+Debian's Waydroid package enables `waydroid-container.service` for `multi-user.target` by default. The live-build hook and Calamares post-install module disable that boot link via `systemctl --root=... disable` while preserving D-Bus/systemd activation; the container's drop-in then requires initialization and binderfs on explicit start. Static/systemd-root policy tests pass; actual first-start/stop/restart and persistence remain unverified.
 
-Implement:
+## Phase 4 — Virtualization
 
-- Calamares-based GUI installer ✅
-- welcome screen ✅
-- user creation ✅
-- language ✅
-- keyboard ✅
-- timezone ✅
-- hardware detection ✅
-- network detection ✅
-- ecosystem selection (packagechooser) ✅
-- starter applications ✅
-- disk selection ✅
-- installation ✅
-- NextraOS branding ✅
-- post-install ecosystem configuration ✅
+**Status: Integration scaffold exists; runtime test pending**
 
-Success criteria:
+- Provide QEMU/KVM through libvirt with local socket activation.
+- Do not start guest VMs automatically on login.
+- Verify VM creation, start, shutdown, suspend, storage persistence and SPICE access.
+- Keep host filesystem/device shares opt-in and networking isolated by default.
 
-A fresh QEMU VM can install NextraOS from the ISO. ✅
+The Debian Trixie package `libvirt-daemon` includes `libvirtd.socket`; current configuration enables that socket for selected VM support rather than eagerly enabling the daemon. Validate activation and access controls in the built system.
 
-Verification date: 2026-09-11
+## Phase 5 — Performance tuning
 
-Tested in QEMU with UEFI boot (OVMF), 8GB RAM, 4 CPUs, KVM.
+**Status: Not started**
 
----
+Tune kernel modules, initramfs, zram, services, GPU, QEMU CPU/I/O only after collecting a baseline. Accept a change only when repeatable measurements improve without security, stability or interaction regressions.
 
-# Phase 3 — Native Application Layer
+## Phase 6 — Distribution and installer
 
-Status: Complete (2026-09-11)
+**Status: Existing installer prototype; Tokyo requirements not validated**
 
-Implement:
+- Keep installation network-first and compute disk requirements from selected components and guest images.
+- Verify hardware/network detection, locale/timezone, account creation, component selection, download failure handling and installation completion.
+- Test persistent files, settings, package updates, Waydroid data and VM disks across reboot.
+- Produce a reproducible ISO, QEMU boot test and install-to-virtual-disk regression.
 
-- APT ✅
-- Flatpak ✅
-- Software Center (plasma-discover) ✅
-- application discovery ✅
-- desktop integration ✅
+The current Calamares module has `packages.conf` operations empty and some ecosystems are already in the ISO package lists regardless of selection. The installer’s selection-to-package behavior and persistence require redesign and verification before being called complete.
 
-Starter kit:
+## Current test status
 
-- Firefox (firefox-esr) ✅
-- GIMP ✅
-- VLC ✅
-- VSCodium (via APT repo) ✅
-
-Verification date: 2026-09-11
-
-All starter applications included in package lists.
-KDE Discover provides graphical software management.
-Flatpak configured with Flathub remote.
-
----
-
-# Phase 4 — Android
-
-Status: Complete (2026-09-11)
-
-Integrate:
-
-- Waydroid ✅
-- Kernel module setup (binderfs) ✅
-- APK installation ✅
-- application discovery ✅
-- desktop entries ✅
-- clipboard sharing (via wl-clipboard) ✅
-- file sharing ✅
-
-Success criteria:
-
-Android apps run as native Wayland windows on NextraOS. ✅
-
-Note: Waydroid requires installed system (not live mode).
-Android images not included (user downloads on first use).
-
-Implementation:
-
-- Enabled trixie-backports repository
-- Added waydroid, lxc, python3-gbinder packages
-- Created systemd service for binderfs setup
-- Created first-boot initialization script
-- Created desktop entry for Android Apps launcher
-- Created script to auto-generate desktop entries for installed apps
-
-Verification date: 2026-09-11
-
----
-
-# Phase 5 — Windows VM Integration
-
-Status: Complete (2026-09-11)
-
-Implement:
-
-- QEMU/KVM via libvirt ✅
-- SPICE protocol integration ✅
-- spice-vdagent (clipboard, resolution) ✅
-- spice-webdavd (file sharing) ✅
-- virt-viewer (SPICE client) ✅
-- systemd user services ✅
-- Desktop integration (.desktop files) ✅
-- MIME type registration (.exe, .msi) ✅
-- Windows VM fallback for .exe files ✅
-- Application menu integration ✅
-
-Success criteria:
-
-Windows applications run in a Windows VM accessible via SPICE. ✅
-.exe files launch directly in the Windows VM. ✅
-
-Architecture:
-
-    Linux Desktop (KDE Plasma Wayland)
-        │
-        └── libvirt / QEMU/KVM
-            ├── Windows VM (32GB qcow2, expandable)
-            ├── SPICE display
-            └── systemd service
-
-Implementation:
-
-- Added spice-webdavd, virt-viewer to package list
-- Created Windows VM management script (windows-vm.sh)
-- Created systemd user service for Windows VM
-- Registered MIME types for .exe and .msi files
-- Created desktop entry for Windows Apps launcher
-- Created handler script for Windows executables
-- Set up libvirt and shared directories
-
-Note: Windows VM must be created manually by user.
-VM images not included (user provides Windows installation media).
-
-Verification date: 2026-09-11
-
-Note:
-
-- Full desktop only (no seamless windows)
-- Requires significant RAM (4-8 GB for VM)
-- Resource optimization via balloon driver, CPU pinning
-- SynWin mode investigation (Phase 5 research only)
-
----
-
-# Phase 6 — macOS Experimental
-
-Status: Complete (2026-09-11)
-
-Implement:
-
-- QEMU/KVM via libvirt (same management as Windows VM) ✅
-- OpenCore bootloader integration ✅
-- SPICE protocol integration ✅
-- spice-vdagent (clipboard, resolution) ✅
-- systemd user services ✅
-- Automated Recovery DMG download ✅
-- File sharing (SPICE webdav) ✅
-
-Success criteria:
-
-macOS runs in a VM accessible via SPICE. ✅
-
-Architecture:
-
-    Linux Desktop (KDE Plasma Wayland)
-        │
-        └── libvirt / QEMU/KVM
-            ├── OpenCore bootloader
-            ├── macOS Recovery DMG
-            ├── SPICE display
-            └── systemd service
-
-Implementation:
-
-- Created macOS VM management script (macos-vm.sh)
-- Created OpenCore directory structure
-- Created basic OpenCore config.plist
-- Created systemd user service for macOS VM
-- Created desktop entry for macOS Apps launcher
-- Set up libvirt and shared directories
-
-Note:
-
-- AVX2 required (Intel Haswell 4th gen+, 2013+)
-- Full desktop only (no seamless windows)
-- Experimental status
-- macOS EULA restricts virtualization to Apple hardware
-- OpenCore must be downloaded manually by user
-- macOS Recovery DMG must be downloaded by user
-
-Verification date: 2026-09-11
-
----
-
-# Phase 7 — VM Lifecycle Management
-
-Status: Partially complete (2026-09-11)
-
-Implement:
-
-- VM suspend/resume (`virsh save` / `virsh restore`) ✅
-- VM snapshots (`virsh snapshot-create-as`) ✅
-- Auto-suspend on application exit (configurable grace period) ✅
-- Agent ready detection (polling instead of fixed sleep)
-- CPU pinning for VM cores ✅
-- I/O optimization (virtio-scsi, cache=none)
-- Memory balloon driver ✅
-- Headless mode for execute-only workloads ✅
-- systemd integration for login-time autostart ✅
-- System suspend hook (auto-suspend VMs on systemctl suspend) ✅
-
-Success criteria:
-
-VMs consume host resources only when actively in use. Applications
-launched via `nextraos-vm execute` auto-suspend after exit. ✅
-
-Configuration:
-
-    # ~/.config/nextraos/vm.conf
-    VM_AUTO_SUSPEND=true
-    VM_SUSPEND_GRACE_PERIOD=30
-    VM_SUSPEND_ON_SYSTEM_SUSPEND=true
-
-Implementation:
-
-- Created VM lifecycle management script (vm-lifecycle.sh)
-- Created VM auto-suspend service and script
-- Created system suspend hook for VMs
-- Set up systemd services for lifecycle management
-
-Note:
-
-- Agent ready detection not implemented (would require guest agent)
-- I/O optimization not implemented (would require VM configuration)
-
-Verification date: 2026-09-11
-
----
-
-# Phase 8 — Production Hardening
-
-Status: Complete (2026-09-11)
-
-Improve:
-
-- security ✅
-- updates ✅
-- rollback ✅
-- recovery ✅
-- logging ✅
-- diagnostics ✅
-- resource management ✅
-- installer reliability ✅
-- documentation ✅
-
-Implementation:
-
-- Created production hardening script (nextraos-harden.sh)
-- Configured firewall (ufw)
-- Configured automatic updates (unattended-upgrades)
-- Configured logging (rsyslog, logrotate)
-- Created diagnostics tools (nextraos-diagnose)
-- Created resource manager (nextraos-resource-manager)
-- Created installer reliability checker (nextraos-installer-check)
-- Set up systemd services for hardening
-
-Verification date: 2026-09-11
-
----
-
-# Long-Term Goal
-
-A user should be able to search for an application and launch it
-without needing to understand which operating system the application
-was originally designed for.
-
-Supported ecosystems:
-
-- Native Linux (APT, Flatpak)
-- Windows (Windows VM via QEMU/KVM)
-- Android (Waydroid)
-- macOS (experimental, QEMU/KVM)
+- `./tools/test`: per-script shell syntax, startup policy, Niri package/config and Noctalia pin assertions, QEMU GL and KVM/TCG fallback simulation, isolated `systemctl --root` disable test, and one-sample memory-collector CSV smoke test; no package/ISO/runtime build.
+- `./tools/test-noctalia-package`: separate Docker/network test verifies the pinned signing key, package SHA-256, Trixie install dependencies, and CLI version/help; no GUI session.
+- `./tools/build-niri-package`: built successfully in a fresh Debian Trixie/AMD64 container; all 195 upstream tests passed. A fresh Trixie install smoke test resolved declared dependencies and `niri --version` reported the pinned commit.
+- Systemd user-unit verification: `systemd-analyze --user verify` remains unavailable in the build container, but the Noctalia unit was exercised in the fresh QEMU user manager; it started, reached `failed/timeout` at `TimeoutStopSec=5s` after Niri SIGKILL (no process remained), and started successfully again after relogin.
+- `./build/build-iso`: not run for the Niri target; the default package/session configuration remains KDE.
+- Niri smoke ISO QEMU run: UEFI login, Weston/llvmpipe rendering, Noctalia launcher, Foot mapping, VT resume and compositor-failure recovery were exercised; persistent installation and persistence across reboot were not.
+- Native GPU, Waydroid, VM and 4/8/16 GiB idle-memory acceptance tests remain open.

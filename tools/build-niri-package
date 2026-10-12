@@ -1,0 +1,173 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export LC_ALL=C
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
+NIRI_TAG="v26.04"
+NIRI_COMMIT="8ed0da44d974c32c6877d2f4630c314da0717ecb"
+NIRI_REPOSITORY="https://github.com/niri-wm/niri.git"
+OUTPUT_DIR="$PROJECT_DIR/dist/packages"
+
+usage() {
+    cat <<'USAGE'
+Usage: tools/build-niri-package [--output-dir DIRECTORY]
+
+Build the project-owned Niri v26.04 Debian package on native Debian Trixie
+AMD64. The source commit is pinned and checked. Cargo dependencies are
+vendored from the pinned Cargo.lock before the package build, then compiled
+offline. This requires network access during source/dependency preparation.
+
+The resulting .deb is a proof-of-concept package and is not wired into the
+live-build image until a clean Trixie build and desktop boot are verified.
+Set NIRI_BUILD_JOBS to limit parallel compilation on memory-constrained hosts.
+
+Options:
+  --output-dir DIRECTORY  Destination for the .deb (default: dist/packages)
+  -h, --help              Show this help
+USAGE
+}
+
+while (($#)); do
+    case "$1" in
+        --output-dir)
+            (($# >= 2)) || { echo "Missing value for --output-dir" >&2; exit 2; }
+            OUTPUT_DIR=$2
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+for command_name in git cargo rustc dpkg dpkg-checkbuilddeps dpkg-buildpackage dpkg-deb fakeroot; do
+    command -v "$command_name" >/dev/null 2>&1 || {
+        echo "Required build command is missing: $command_name" >&2
+        exit 1
+    }
+done
+
+[[ "$(id -u)" -ne 0 ]] || {
+    echo "Refusing to build as root; use a native unprivileged Trixie build user." >&2
+    exit 1
+}
+[[ -r /etc/os-release ]] || { echo "Cannot identify the build OS." >&2; exit 1; }
+# shellcheck disable=SC1091
+. /etc/os-release
+[[ "${VERSION_CODENAME:-}" == "trixie" ]] || {
+    echo "Niri package builds are restricted to Debian Trixie (found ${VERSION_CODENAME:-unknown})." >&2
+    exit 1
+}
+[[ "$(dpkg --print-architecture)" == "amd64" ]] || {
+    echo "Niri package builds are currently restricted to AMD64." >&2
+    exit 1
+}
+echo "Build architecture: $(dpkg --print-architecture)"
+echo "Build toolchain: $(rustc --version); $(cargo --version)"
+rustc_version=$(rustc --version | awk '{ print $2 }')
+dpkg --compare-versions "$rustc_version" ge 1.85 || {
+    echo "Rust 1.85 or later is required; found $rustc_version." >&2
+    exit 1
+}
+
+OUTPUT_DIR=$(realpath -m -- "$OUTPUT_DIR")
+ARTIFACT="$OUTPUT_DIR/nextraos-niri_26.04-1_amd64.deb"
+[[ ! -e "$ARTIFACT" ]] || {
+    echo "Refusing to overwrite existing package: $ARTIFACT" >&2
+    exit 1
+}
+mkdir -p -- "$OUTPUT_DIR"
+
+WORK_DIR=$(mktemp -d "$PROJECT_DIR/.niri-package-build.XXXXXX")
+WORK_DIR=$(realpath -- "$WORK_DIR")
+case "$WORK_DIR" in
+    "$PROJECT_DIR"/.niri-package-build.*) ;;
+    *) echo "Refusing unexpected build directory: $WORK_DIR" >&2; exit 1 ;;
+esac
+cleanup() {
+    case "${WORK_DIR:-}" in
+        "$PROJECT_DIR"/.niri-package-build.*) rm -rf -- "$WORK_DIR" ;;
+        *) echo "Skipping cleanup for unexpected path: ${WORK_DIR:-unset}" >&2 ;;
+    esac
+}
+trap cleanup EXIT
+
+SOURCE_DIR="$WORK_DIR/niri"
+echo "==> Fetching Niri $NIRI_TAG at pinned commit $NIRI_COMMIT"
+git clone --quiet --depth=1 --single-branch --branch "$NIRI_TAG" "$NIRI_REPOSITORY" "$SOURCE_DIR"
+actual_commit=$(git -C "$SOURCE_DIR" rev-parse HEAD)
+[[ "$actual_commit" == "$NIRI_COMMIT" ]] || {
+    echo "Pinned source mismatch: expected $NIRI_COMMIT, found $actual_commit" >&2
+    exit 1
+}
+
+cp -a -- "$PROJECT_DIR/packages/nextraos-niri/debian" "$SOURCE_DIR/debian"
+(
+    cd "$SOURCE_DIR"
+    dpkg-checkbuilddeps
+)
+export CARGO_HOME="$WORK_DIR/cargo-home"
+BUILD_JOBS=${NIRI_BUILD_JOBS:-$(nproc)}
+[[ "$BUILD_JOBS" =~ ^[1-9][0-9]*$ ]] || {
+    echo "NIRI_BUILD_JOBS must be a positive integer." >&2
+    exit 2
+}
+export CARGO_BUILD_JOBS="$BUILD_JOBS"
+mkdir -p -- "$SOURCE_DIR/.cargo"
+echo "==> Vendoring Cargo dependencies from the pinned lockfile"
+(
+    cd "$SOURCE_DIR"
+    cargo vendor --locked > .cargo/config.toml
+)
+[[ -s "$SOURCE_DIR/.cargo/config.toml" && -d "$SOURCE_DIR/vendor" ]] || {
+    echo "Cargo vendor preparation produced no configuration or vendor tree." >&2
+    exit 1
+}
+grep -Fq 'replace-with = "vendored-sources"' "$SOURCE_DIR/.cargo/config.toml" || {
+    echo "Generated Cargo config lacks the vendored-source replacement." >&2
+    exit 1
+}
+grep -Fq 'directory = "vendor"' "$SOURCE_DIR/.cargo/config.toml" || {
+    echo "Generated Cargo config does not point at the vendor tree." >&2
+    exit 1
+}
+EPOCH=$(git -C "$SOURCE_DIR" show -s --format=%ct HEAD)
+export SOURCE_DATE_EPOCH="$EPOCH"
+export DEB_BUILD_OPTIONS="${DEB_BUILD_OPTIONS:+$DEB_BUILD_OPTIONS }parallel=$BUILD_JOBS"
+echo "==> Building the NextraOS Debian package offline"
+(
+    cd "$SOURCE_DIR"
+    dpkg-buildpackage -b -us -uc -rfakeroot
+)
+
+BUILT_PACKAGE="$WORK_DIR/nextraos-niri_26.04-1_amd64.deb"
+[[ -f "$BUILT_PACKAGE" ]] || {
+    echo "Expected package artifact was not produced: $BUILT_PACKAGE" >&2
+    exit 1
+}
+[[ "$(dpkg-deb -f "$BUILT_PACKAGE" Package)" == "nextraos-niri" ]]
+[[ "$(dpkg-deb -f "$BUILT_PACKAGE" Version)" == "26.04-1" ]]
+[[ "$(dpkg-deb -f "$BUILT_PACKAGE" Architecture)" == "amd64" ]]
+package_contents=$(dpkg-deb --contents "$BUILT_PACKAGE")
+for path in \
+    usr/bin/niri \
+    usr/bin/niri-session \
+    usr/share/wayland-sessions/niri.desktop \
+    usr/share/xdg-desktop-portal/niri-portals.conf \
+    usr/lib/systemd/user/niri.service \
+    usr/lib/systemd/user/niri-shutdown.target; do
+    grep -Fq "./$path" <<< "$package_contents" || {
+        echo "Package is missing required session asset: $path" >&2
+        exit 1
+    }
+done
+cp -- "$BUILT_PACKAGE" "$ARTIFACT"
+echo "Built package: $ARTIFACT"
+echo "Note: source/vendor notices and session integration still require review before ISO inclusion."

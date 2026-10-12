@@ -85,16 +85,21 @@ setup_binder || true
 
 # --- Waydroid Initialization ---
 
-# System type chosen at install time (GAPPS or VANILLA); default VANILLA
+# The installer writes this only when Android/Waydroid was selected.
+# Do not silently initialize/download a runtime the user did not choose.
 SYSTEM_TYPE_FILE="/etc/waydroid/system_type"
-WAYDROID_SYSTEM_TYPE="VANILLA"
-if [ -f "$SYSTEM_TYPE_FILE" ]; then
-    WAYDROID_SYSTEM_TYPE=$(tr -d '[:space:]' < "$SYSTEM_TYPE_FILE" 2>/dev/null || echo "VANILLA")
-    case "$WAYDROID_SYSTEM_TYPE" in
-        GAPPS|VANILLA) ;;
-        *) WAYDROID_SYSTEM_TYPE="VANILLA" ;;
-    esac
+if [ ! -f "$SYSTEM_TYPE_FILE" ]; then
+    echo "Waydroid is not selected. Re-run the installer to enable Android support." >&2
+    exit 1
 fi
+WAYDROID_SYSTEM_TYPE=$(tr -d '[:space:]' < "$SYSTEM_TYPE_FILE")
+case "$WAYDROID_SYSTEM_TYPE" in
+    GAPPS|VANILLA) ;;
+    *)
+        echo "Invalid Waydroid system type in $SYSTEM_TYPE_FILE" >&2
+        exit 1
+        ;;
+esac
 echo "Waydroid system type: $WAYDROID_SYSTEM_TYPE"
 
 # Initialize Waydroid (uses pre-downloaded images if available)

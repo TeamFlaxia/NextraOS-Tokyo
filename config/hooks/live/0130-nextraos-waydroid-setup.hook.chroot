@@ -3,11 +3,14 @@ set -e
 
 echo "==> NextraOS: Setting up Waydroid"
 
-# Enable binderfs service
-systemctl enable waydroid-binderfs.service
+# Debian's package enables waydroid-container.service for multi-user.target.
+# Keep it available for explicit D-Bus/systemd activation, but disable boot
+# activation. --root keeps this filesystem-only inside the live-build chroot.
+systemctl --root=/ disable waydroid-container.service
 
-# Enable waydroid-init service (runs on first boot)
-systemctl enable waydroid-init.service
+# Do not initialize Waydroid or mount binderfs during idle boot. The
+# Waydroid container unit depends on waydroid-init.service so setup and
+# image download occur only when the user starts the Android runtime.
 
 # Create waydroid data directory
 mkdir -p /var/lib/waydroid

@@ -1,5 +1,6 @@
-#!/bin/sh
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
+shopt -s nullglob
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -19,16 +20,19 @@ echo "==> Running lb config..."
 ./auto/config
 
 echo "==> Running lb build..."
-sudo lb build 2>&1 | tee build.log
+sudo lb build 2>&1 | tee "$PROJECT_DIR/build.log"
 
 echo "==> Copying ISO to dist/"
-ISO_FILE=$(ls -1 live-image-*.iso 2>/dev/null | head -1)
-if [ -n "$ISO_FILE" ]; then
-    cp "$ISO_FILE" "$DIST_DIR/$ISO_NAME"
+ISO_FILES=("$PROJECT_DIR"/live-image-*.iso)
+if ((${#ISO_FILES[@]} == 1)); then
+    cp "${ISO_FILES[0]}" "$DIST_DIR/$ISO_NAME"
     echo "    Built: $DIST_DIR/$ISO_NAME"
     ls -lh "$DIST_DIR/$ISO_NAME"
+elif ((${#ISO_FILES[@]} == 0)); then
+    echo "ERROR: No ISO file produced. Check build.log for errors." >&2
+    exit 1
 else
-    echo "ERROR: No ISO file produced. Check build.log for errors."
+    echo "ERROR: Expected one ISO, found ${#ISO_FILES[@]}. Clean the build output and retry." >&2
     exit 1
 fi
 

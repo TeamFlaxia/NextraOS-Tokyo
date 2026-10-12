@@ -78,6 +78,16 @@ Do not modify upstream software silently.
 
 ---
 
+# Desktop session and portals
+
+Niri and Noctalia are trusted host-session components. A Wayland client in the same session may have broad access to compositor IPC, input, screen and clipboard depending on enabled protocols. Use reviewed portals/sandboxing for untrusted applications; do not treat Wayland alone as a security boundary. Keep shell plugins disabled by default or reviewed and pinned; do not allow automatic plugin updates in a release configuration.
+
+## libvirt and Waydroid
+
+A writable system-mode libvirt UNIX socket can provide root-equivalent control of the host. Keep remote libvirt listeners disabled, limit group membership, and use the Debian socket-activation path only for users who selected VM support. Guest creation and start must be explicit. Waydroid is a privileged container integration: binder/device access, host IPC, filesystem mounts, network and clipboard sharing must be documented and minimized. Initialize/download Android images only on explicit user action.
+
+---
+
 # Reporting
 
 Security-sensitive behavior should be documented in:

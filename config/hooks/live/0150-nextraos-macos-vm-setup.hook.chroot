@@ -45,8 +45,9 @@ cat > /usr/share/nextraos/opencore/EFI/OC/config.plist << 'EOF'
 </plist>
 EOF
 
-# Enable libvirt service
-systemctl enable libvirtd.service
+# Listen on the local libvirt socket and start the daemon on demand.
+# Debian Trixie ships libvirtd.socket in libvirt-daemon.
+systemctl enable libvirtd.socket
 
 # Create systemd user service for macOS VM
 mkdir -p /etc/systemd/user

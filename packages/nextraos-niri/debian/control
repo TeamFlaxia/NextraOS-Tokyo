@@ -1,0 +1,36 @@
+Source: nextraos-niri
+Section: x11
+Priority: optional
+Maintainer: NextraOS Project <nextraos@example.invalid>
+Build-Depends:
+ debhelper-compat (= 13),
+ cargo,
+ rustc,
+ gcc,
+ clang,
+ pkg-config,
+ fakeroot,
+ libudev-dev,
+ libgbm-dev,
+ libxkbcommon-dev,
+ libegl1-mesa-dev,
+ libwayland-dev,
+ libinput-dev,
+ libdbus-1-dev,
+ libsystemd-dev,
+ libseat-dev,
+ libpipewire-0.3-dev,
+ libpango1.0-dev,
+ libdisplay-info-dev
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+
+Package: nextraos-niri
+Architecture: amd64
+Depends: ${shlibs:Depends}, ${misc:Depends}, libwayland-server0
+Suggests: xdg-desktop-portal-gnome, xdg-desktop-portal-gtk
+Description: Niri Wayland compositor packaged for NextraOS
+ Niri is a scrollable-tiling Wayland compositor. This package includes
+ the upstream session entry, systemd user units and portal configuration.
+ It does not provide a desktop shell, greeter, terminal or application
+ launcher; NextraOS supplies those separately through its desktop stack.

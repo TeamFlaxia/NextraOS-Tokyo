@@ -1,0 +1,28 @@
+#!/usr/bin/make -f
+
+export CARGO_NET_OFFLINE = true
+export CARGO_HOME = $(CURDIR)/.cargo-home
+export NIRI_BUILD_COMMIT = 8ed0da44d974c32c6877d2f4630c314da0717ecb
+
+%:
+	dh $@ --buildsystem=none
+
+override_dh_auto_configure:
+	test -d vendor
+	test -s .cargo/config.toml
+	test -f Cargo.lock
+
+override_dh_auto_build:
+	cargo build --frozen --release --package niri
+
+override_dh_auto_test:
+	cargo test --frozen --release --package niri
+
+override_dh_auto_install:
+	install -D -m 0755 target/release/niri debian/tmp/usr/bin/niri
+	install -D -m 0755 resources/niri-session debian/tmp/usr/bin/niri-session
+	install -D -m 0644 resources/niri.desktop debian/tmp/usr/share/wayland-sessions/niri.desktop
+	install -D -m 0644 resources/niri-portals.conf debian/tmp/usr/share/xdg-desktop-portal/niri-portals.conf
+	install -D -m 0644 resources/niri.service debian/tmp/usr/lib/systemd/user/niri.service
+	install -D -m 0644 resources/niri-shutdown.target debian/tmp/usr/lib/systemd/user/niri-shutdown.target
+	install -D -m 0644 LICENSE debian/tmp/usr/share/doc/nextraos-niri/LICENSE

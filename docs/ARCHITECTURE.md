@@ -1,280 +1,71 @@
-# NextraOS Architecture
+# NextraOS Tokyo Architecture
 
-## 1. Overview
+## 1. Direction
 
-NextraOS consists of several layers.
+NextraOS Tokyo targets a persistent Debian 13 (Trixie), AMD64 system. The host should remain a full Debian/glibc environment with systemd and APT, while the desktop and guest runtimes are modular and activated only when needed.
 
-    Hardware
-        |
-        v
-    Linux Kernel
-        |
-        +----------------------+
-        |                      |
-        v                      v
-    Native Linux          Virtualization
-        |                      |
-        |              +-------+-------+
-        |              |               |
-        v              v               v
-    KDE Plasma       KVM/QEMU       Containers
-        |              |               |
-        |              |               +--> Waydroid
-        |              |
-        |              +--> Windows
-        |              +--> macOS
-        |
-        v
-    NextraOS Integration Layer
-        |
-        +--> Application Discovery
-        +--> Compatibility Resolver
-        +--> Software Center
-        +--> Desktop Integration
-        +--> Notifications
-        +--> Filesystem Integration
-        |
-        v
-    User
+```text
+Hardware
+  └─ Linux kernel: DRM/KMS, KVM, binder, namespaces, cgroups
+      └─ Debian minimal userland: systemd, D-Bus, udev, APT, NetworkManager
+          └─ Wayland session: Niri compositor + Noctalia v5 shell
+              ├─ Portals, PipeWire/WirePlumber, session authentication
+              ├─ Native Linux applications
+              ├─ Waydroid (Android container, on demand)
+              └─ QEMU/KVM + libvirt (VMs, on demand)
+```
 
-## 2. Execution Environments
+Noctalia is the desktop shell, not a compositor, greeter, file manager, or replacement for portals. Niri is the compositor, not a complete desktop environment. Each required session service must be selected and tested explicitly.
 
-### Native Linux
+The default package list still builds the historical KDE prototype; the Tokyo desktop remains a reversible test profile. A Trixie Niri + Noctalia ISO boots in QEMU, and a Weston-headless/llvmpipe render run produced a Niri `Virtual-1` output, Noctalia layer surfaces, a mapped Foot window, and an in-guest screenshot. VT resume and greetd recovery after a compositor SIGKILL were also exercised. This is smoke-profile evidence, not full Stage 1 acceptance: portals, actual audio playback, shell shutdown, persistence and memory targets remain open. See [ADR 0004](adr/0004-niri-noctalia-desktop.md) and the [roadmap](ROADMAP.md).
 
-Primary environment.
+## 2. Session responsibilities
 
-Used for:
+- **Niri:** Wayland compositor, window management, compositor IPC, session environment.
+- **Noctalia v5:** bar, launcher, notifications, shell surfaces and settings. Start it from Niri as documented upstream. Do not run a duplicate bar or notification daemon without need.
+- **Login/session:** use a display-manager session or other explicitly locked-down session launcher. Do not fall back to a bare TTY shell on compositor crash.
+- **Portals:** configure portal backends for file chooser and screencast use; test them independently. Niri upstream recommends GNOME portal support for PipeWire screencasting and GTK as a fallback. Portal providers are host-trusted components.
+- **Audio/network:** PipeWire + WirePlumber and NetworkManager are core host services; confirm functional controls in the shell.
+- **X11 compatibility:** add XWayland support (upstream recommends xwayland-satellite where appropriate) only after native session startup is proven.
 
-- system applications
-- APT packages
-- Flatpak applications
+## 3. Runtime lifecycle
 
 ### Waydroid
 
-Provides an Android environment inside Linux.
+Waydroid is a privileged Android container integration using Linux namespaces, binder and system services. Its binder setup and first `waydroid init`/image download must not run during idle boot. Initialize it on explicit runtime start, keep app data under persistent system storage, and document host-device, filesystem, network, IPC, clipboard and display access. Waydroid is not expected to work in the live ISO unless separately proven.
 
-### Windows VM
+The repository now models the custom init and binderfs units as dependencies of the Waydroid container rather than enabling them at the default target. This startup contract has static tests, but the container-start dependency, image download and stop/restart path still require an installed-system integration test.
 
-Used for Windows applications.
+### QEMU/KVM and libvirt
 
-Implementation:
+Use QEMU/KVM through libvirt, with local UNIX sockets and systemd activation. Enable the socket path only for systems that selected VM support; do not start guest VMs from a login/default target. A writable system-mode libvirt socket is effectively root-equivalent access, so group membership and polkit authorization must be deliberate. Do not enable remote TCP/TLS sockets without separately designed authentication.
 
-- QEMU/KVM via libvirt
-- `virt-install` for VM creation
-- SPICE for display
-- `qemu-guest-agent` for guest communication
+VM disk images and Android data belong on persistent storage. Host filesystem shares and device passthrough must be user-selected and narrow by default. Guests use isolated/NAT networking unless the user opts into another mode.
 
-### macOS VM
+## 4. Persistence and resources
 
-Experimental.
+This project targets a persistent installed system, not an automatically persistent live USB. Validate that user files, settings, installed packages, Waydroid data and VM disks survive reboot after installation.
 
-Implementation:
+Idle memory is measured as `MemTotal - MemAvailable` at 5, 30 and 60 minutes after cold boot. Record PSS, zram, swap, PSI, boot timing, profile and conditions alongside it. The under-1024-MiB requirement and 850-MiB development goal remain unverified. Do not tune by dropping caches, hiding swap or disabling security services.
 
-- QEMU/KVM via libvirt (same management as Windows VM)
-- OpenCore bootloader for non-Apple hardware
-- SPICE for display
-- `virsh save`/`restore` for suspend/resume
+## 5. Compatibility path
 
-Legal and hardware limitations must be respected.
+Preferred execution order:
 
-## 3. Compatibility Resolver
+1. Native Linux / APT
+2. Flatpak
+3. Android / Waydroid
+4. Windows VM / QEMU-KVM
+5. macOS virtualization (experimental, legally constrained)
 
-Future component:
+A compatibility resolver is a future component. Do not implement one before the execution environments and their boundaries are reliable.
 
-    Nextra Compatibility Resolver
+## 6. Security boundaries
 
-Input:
+Treat the compositor and shell as trusted session components. Wayland does not isolate clients from the host session: malicious Wayland clients can abuse compositor/portal interfaces and user-level D-Bus. Use portals, Flatpak or other reviewed sandboxing for untrusted applications. Keep plugins user-space, review their provenance, and disable automatic plugin updates in a release configuration.
 
-    application identifier
-    executable type
-    package type
-    metadata
-    compatibility database
-    host capabilities
+Do not expose the complete host filesystem, credentials, browser profiles, SSH keys, devices, or host network to a guest by default. Document per integration: privileges, filesystem, network, devices, IPC, clipboard and display access.
 
-Output:
+## 7. Migration gates
 
-    execution environment
-
-Example:
-
-    foo.deb
-        -> native
-
-    foo.flatpakref
-        -> Flatpak
-
-    foo.apk
-        -> Waydroid
-
-    foo.exe
-        -> Windows VM
-
-    foo.app
-        -> macOS VM
-        -> unsupported
-
-The resolver must be deterministic and explainable.
-
-## 4. Desktop Integration
-
-Applications should expose standard Linux desktop entries.
-
-Where possible:
-
-- `.desktop` files
-- MIME associations
-- application icons
-- startup notifications
-- taskbar integration
-- window titles
-- notifications
-
-The user should see an application rather than a VM.
-
-## 5. Filesystem Integration
-
-Filesystem sharing should be conservative.
-
-Default behavior should favor:
-
-- user-selected folders
-- read-only access when practical
-- explicit permissions
-
-Do not expose the entire host filesystem to guests by default.
-
-## 6. Networking
-
-The default architecture should minimize guest exposure.
-
-Use:
-
-- NAT
-- isolated networking
-- explicit port forwarding
-
-when possible.
-
-## 7. Resource Management
-
-Virtual machines must have configurable:
-
-- CPU
-- RAM
-- storage
-- GPU
-- USB devices
-- networking
-
-The system should avoid allocating all host resources by default.
-
-## 8. Modularity
-
-Heavy components should be optional.
-
-For example:
-
-    Base OS
-        |
-        +--> Linux
-        |
-        +--> Android support
-        |
-        +--> Windows compatibility
-        |
-        +--> Windows VM
-        |
-        +--> macOS experimental support
-
-The user should not need every subsystem installed.
-
-## 9. Failure Handling
-
-If an application cannot run:
-
-    compatibility resolver
-        |
-        +--> compatible
-        |
-        +--> fallback available
-        |
-        +--> unsupported
-
-The UI should explain why.
-
-Never silently fail.
-
-## 10. Security Boundary
-
-Treat compatibility environments as potentially unsafe.
-
-A Windows executable should not automatically receive unrestricted
-access to:
-
-- the home directory
-- host devices
-- host network
-- credentials
-- SSH keys
-- browser profiles
-
-without explicit permission.
-
-## 11. Performance Principle
-
-Performance optimization should follow:
-
-1. native execution
-2. compatibility layer
-3. hardware-accelerated VM
-4. fallback VM
-
-Do not sacrifice system stability for theoretical performance.
-
-## 12. VM Lifecycle
-
-VMs should consume host resources only when actively in use.
-
-Lifecycle states:
-
-    running
-        |
-        +--> active (user interacting via SPICE or app executing)
-        |
-        +--> idle (no active app, SPICE connected but idle)
-        |
-        v
-    suspending
-        |
-        +--> virsh save (write state to disk, free RAM)
-        |
-        v
-    suspended
-        |
-        +--> RAM freed, state on disk
-        |
-        +--> resume on demand or on next execute
-
-Auto-suspend policy:
-
-- Apps launched via `nextraos-vm execute` are tracked
-- When the tracked app exits, a configurable grace period begins
-- After the grace period, the VM is auto-suspended via `virsh save`
-- Apps launched via SPICE (manual interaction) are not auto-suspended
-- Systemd integration: VMs auto-suspend on `systemctl suspend`
-
-Resource optimization:
-
-- CPU pinning: dedicate specific host cores to VMs
-- I/O: virtio-scsi with cache=none
-- Memory: balloon driver for dynamic adjustment
-- Display: headless mode for execute-only workloads
-
-## 12. Distribution Architecture
-
-The ISO should remain relatively small.
-
-Large components should be downloaded during installation.
-
-The installed system can then contain the selected runtime environments.
+Before replacing the KDE prototype package/session configuration, prove a pinned Niri package build on Debian Trixie and a Noctalia v5 install path; then build and boot in QEMU. Verify login/logout and compositor failure handling, portals, XWayland (if selected), audio, networking, installer operation and shutdown. Only then remove the old Plasma-specific overlays and claim the Tokyo target boots.

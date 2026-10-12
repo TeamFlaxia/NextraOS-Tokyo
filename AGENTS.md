@@ -88,7 +88,7 @@ Examples:
 
 - Debian
 - live-build
-- KDE Plasma
+- Niri + Noctalia
 - Wayland
 - PipeWire
 - Waydroid
@@ -128,16 +128,22 @@ must not be made without verification.
 
 # 3. Base System
 
-The initial target is:
+The current Tokyo target is:
 
-- Debian Trixie
-- AMD64
-- KDE Plasma
-- Wayland
+- Debian 13 (Trixie)
+- AMD64 / x86_64
+- Niri Wayland compositor
+- Noctalia v5 desktop shell
 - systemd
 - PipeWire
 - NetworkManager
-- Network-first installation
+- APT / dpkg
+- Persistent installed system
+
+The checked-in KDE image is a historical prototype, not the target
+architecture. Do not claim the Niri + Noctalia transition is complete
+until its package source, login session, portals, audio, networking,
+and QEMU boot are verified.
 
 The ISO should be intentionally small.
 
@@ -183,229 +189,122 @@ in one step.
 
 Development must proceed incrementally.
 
-## Stage 0 — Research
+## Stage 0 — Debian Baseline
 
-Research:
-
-- Debian Trixie
-- live-build
-- KDE Plasma Wayland
-- Wayland
-- PipeWire
-- APT
-- Flatpak
-- Waydroid
-- QEMU
-- KVM
-- desktop integration projects
-- filesystem integration
-- application discovery
-- security boundaries
-- licensing
-- legal restrictions
-
-Record findings.
+Build a minimal Debian Trixie/AMD64 rootfs with `live-build` and record
+its package set, startup services, boot time and memory baseline. Research
+upstream dependencies, licenses, security models and package provenance
+before adding non-Debian components.
 
 ---
 
-## Stage 1 — Bootable ISO
+## Stage 1 — Wayland Desktop
 
-Produce:
-
-- Debian-based ISO
-- UEFI boot
-- AMD64
-- KDE Plasma
-- Wayland
-- NetworkManager
-- PipeWire
-- terminal
-- file manager
-- settings
-- Firefox
-
-The ISO must boot successfully in QEMU.
+Produce a QEMU-bootable UEFI image with Niri + Noctalia v5, a safe login
+session, portals, PipeWire/WirePlumber, NetworkManager, terminal, file
+manager and basic settings. Verify login/logout, graphics, audio,
+networking, app launch, shutdown and compositor-failure behavior before
+removing the KDE prototype.
 
 ---
 
-## Stage 2 — Installer
+## Stage 2 — Memory Optimization
 
-Implement the NextraOS installer.
-
-The installer should be network-first.
-
-The installer should:
-
-1. detect hardware
-2. detect network connectivity
-3. collect user information
-4. configure locale
-5. configure keyboard
-6. configure timezone
-7. allow ecosystem selection
-8. allow starter applications
-9. show hardware requirements
-10. calculate required disk space
-11. download selected components
-12. install the system
-13. configure the selected runtime environments
-14. create desktop/application integration
-15. reboot into the installed system
+Measure 4 GB, 8 GB and 16 GB profiles at 5/30/60 minutes after repeated
+cold boots under the fixed conditions in `docs/MEMORY-BENCHMARK.md`.
+The host idle target is below 1024 MiB; 850 MiB is a development goal.
+Record misses honestly. Do not drop caches, hide swap use or disable
+security features to reach a number.
 
 ---
 
-## Stage 3 — Native Linux Applications
+## Stage 3 — Android
 
-Implement:
-
-- APT
-- Flatpak
-- desktop application discovery
-- Software Center integration
-- application menu integration
-
-Starter applications:
-
-- Firefox
-- GIMP
-- VLC Media Player
-- VSCodium
+Integrate Waydroid only when selected and started. Verify initialization,
+image download, APK install, application discovery, data persistence,
+stop/restart, Wayland integration and filesystem/clipboard boundaries.
 
 ---
 
-## Stage 4 — Windows VM Integration
+## Stage 4 — Virtualization
 
-Implement:
-
-1. QEMU/KVM via libvirt
-2. SPICE protocol integration
-3. application metadata
-4. executable detection
-5. desktop integration
-6. systemd user services
-
-Windows applications run in a full Windows VM managed by libvirt.
-
-The VM should eventually expose Windows applications as closely as
-possible to normal desktop applications.
+Integrate QEMU/KVM via libvirt and local socket activation. Windows
+applications use an explicitly started full Windows VM. Verify create,
+start, shutdown, suspend, SPICE, persistence and resource limits. Guest
+filesystem/device access remains opt-in.
 
 ---
 
-## Stage 5 — Android
+## Stage 5 — Performance Tuning
 
-Integrate Waydroid.
-
-The goal is:
-
-- APK installation
-- Android application discovery
-- application menu integration
-- Wayland/window integration
-- clipboard integration where possible
-- filesystem integration where safe
-- notifications where possible
+Tune kernel modules, initramfs, zram, startup services, GPU, CPU and VM
+I/O only after collecting a baseline. Retain changes only when repeatable
+tests show an improvement without security, stability or usability loss.
 
 ---
 
-## Stage 6 — Windows VM Optimization
+## Stage 6 — Installer and Distribution
 
-Implement:
-
-- CPU pinning
-- I/O optimization (virtio-scsi, cache=none)
-- Memory balloon driver
-- Headless mode for execute-only workloads
-- SPICE on-demand activation
-
-The VM should eventually expose Windows applications as closely as
-possible to normal desktop applications.
+Maintain a network-first installer that detects hardware/network, collects
+user and locale settings, lets users select runtimes/apps, calculates
+actual disk requirements, installs the system, and verifies first boot.
+Test installed-system persistence across reboot. The installer selection
+must control component installation; avoid shipping every large runtime
+in the ISO by default.
 
 ---
 
-## Stage 7 — macOS Experimental Support
+## Experimental macOS Research
 
-Investigate:
-
-- QEMU
-- KVM
-- hardware compatibility
-- legal restrictions
-- licensing
-- Apple hardware requirements
-- distribution restrictions
-
-macOS support must remain explicitly experimental.
-
-Do not present macOS compatibility as guaranteed.
-
-Do not distribute proprietary Apple software or copyrighted system
-images.
-
-NextraOS should provide integration mechanisms only where legally
-appropriate.
+Investigate QEMU/KVM compatibility, AVX2/hardware requirements, licensing
+and legal distribution restrictions separately. Support remains
+experimental; never distribute proprietary Apple software or copyrighted
+system images, and do not imply guaranteed compatibility.
 
 ---
 
 # 6. Hardware Profiles
 
-NextraOS has three hardware levels.
+NextraOS uses the Tokyo project plan's 4/8/16 GB RAM profiles.
 
 ## Limited Mode
 
-Minimum target:
-
 - AMD64-compatible CPU
-- 2 GB RAM
-- 32 GB storage
+- 4 GB RAM
+- Basic desktop and one constrained guest/runtime at a time
 
-Expected experience:
-
-> A constrained/basic desktop environment.
-
-This is not expected to support the complete NextraOS ecosystem.
+Do not imply that Android and a full VM can be used concurrently at
+this profile. The 4 GB target is part of the idle-memory test matrix,
+not a promise of full-feature multitasking.
 
 ---
 
 ## Full-Feature Minimum
 
-Target:
-
-- AVX2-capable CPU for the full virtualization feature set
-- Intel Haswell 4th generation or newer
-- AMD Zen / Ryzen 1000 series or newer
 - 8 GB RAM
-- 128 GB storage
-- hardware virtualization enabled
+- Hardware virtualization enabled for KVM guests
+- Guest and package choices must be reflected in actual disk-space estimates
 
-This represents the minimum practical target for the complete
-feature set.
+This is the minimum practical profile for the complete feature set,
+not a comfortable multitasking recommendation.
 
-Important:
-
-AVX2 is NOT a requirement for the basic NextraOS desktop.
-
-It is a requirement for specific advanced virtualization scenarios,
-especially experimental macOS virtualization.
+AVX2 is NOT a requirement for the basic NextraOS desktop. It may be
+required for specific experimental virtualization scenarios and must
+be assessed per guest configuration.
 
 ---
 
 ## Recommended
 
-Normal NextraOS recommendation:
-
-- Intel Core 7th generation or newer
-- AMD Ryzen 5th generation or newer
 - 16 GB RAM or more
-- 512 GB SSD or more
 - NVMe preferred
-- hardware virtualization enabled
+- Hardware virtualization enabled
 
-This is the recommended development and user environment.
-
-The goal is:
-
-> A PC from around 2020 or newer should provide a comfortable
-> NextraOS experience.
+32 GB or more is preferred for users who intend to run multiple heavy
+environments (Android, VMs, development tools, and browsers) together.
+Storage requirements depend on selected components and guest images;
+the installer must calculate them instead of presenting a universal
+128 GB minimum.
 
 ---
 
@@ -430,6 +329,13 @@ simultaneously.
 
 NextraOS must not optimize for benchmark numbers at the expense
 of actual multitasking usability.
+
+Idle host memory target: below 1024 MiB; 850 MiB is a development goal.
+Both are unverified until measured at 5/30/60 minutes after multiple
+cold boots under the fixed conditions in `docs/MEMORY-BENCHMARK.md`.
+Report PSS, swap, zram, PSI, boot timing and GPU/UMA memory behavior
+(manual if needed); never hide memory pressure by dropping caches or
+disabling security features.
 
 ---
 
@@ -517,7 +423,7 @@ components.
     [x] contrib
     [x] non-free
 
-    KDE Plasma + Wayland
+    Niri + Noctalia v5 + Wayland
 
     [Note: These options are normally safe to leave unchanged.]
 
@@ -575,7 +481,7 @@ The initial application menu should conceptually contain:
     Virtualization
     └── QEMU / KVM
 
-The exact KDE menu implementation may change.
+The exact launcher/menu implementation may change.
 
 The user-facing organization matters more than the implementation.
 
@@ -794,7 +700,7 @@ Use Architecture Decision Records when appropriate.
 For example:
 
     docs/adr/0001-use-live-build.md
-    docs/adr/0002-kde-wayland.md
+    docs/adr/0002-niri-noctalia-wayland.md
     docs/adr/0003-runtime-resolution.md
 
 Documentation should explain WHY, not only WHAT.
@@ -815,8 +721,8 @@ At minimum, test:
 - hardware detection
 - user creation
 - package installation
-- KDE startup
-- Wayland session
+- Niri + Noctalia session startup
+- Wayland session and portals
 - audio
 - networking
 - application launcher
@@ -838,7 +744,7 @@ QEMU is the primary development target.
 
 The project should provide scripts for:
 
-    ./tools/build-iso
+    ./build/build-iso
     ./tools/run-qemu
     ./tools/run-qemu-install
     ./tools/test
@@ -905,14 +811,13 @@ The immediate goal is NOT:
 
 The immediate goal is:
 
-> Build a minimal, reproducible, Debian Trixie-based KDE Plasma
-> Wayland Live ISO that boots reliably in QEMU.
+> Build a minimal, reproducible Debian Trixie AMD64 image with a
+> verified Niri + Noctalia v5 Wayland session that boots in QEMU.
 
-Then build the installer.
-
-Then build the native Linux experience.
-
-Then integrate compatibility environments one at a time.
+The checked-in KDE image is a historical prototype, not evidence that
+the Tokyo desktop target is complete. After the Niri session proof,
+measure the 4/8/16 GB idle baselines, then improve installation,
+persistence, and on-demand runtime integration one component at a time.
 
 ---
 

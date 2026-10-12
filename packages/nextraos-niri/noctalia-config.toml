@@ -1,0 +1,15 @@
+# NextraOS Noctalia v5 configuration prototype.
+# Not installed or enabled in live-build; validate before using it in a session.
+
+[storage]
+key_source = "secret-service"
+
+[shell]
+telemetry_enabled = false
+external_ip_enabled = false
+setup_wizard_enabled = true
+polkit_agent = true
+screen_time_enabled = false
+
+[shell.launcher]
+fetch_exchange_rates = false

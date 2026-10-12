@@ -16,9 +16,17 @@ binary.modified_timestamps
 .build/
 wget-log*
 
-# dist output (ISO files)
+# dist build and QEMU artifacts
 dist/*.iso
 dist/*.iso.log
+dist/*.qcow2
+dist/niri-test-build-*.log
+dist/.niri-test-build/
+dist/.niri-qmp*
+dist/.niri-test-iso.*
+dist/niri-*.ppm
+dist/niri-*.png
+dist/packages/*.deb
 
 # live-build auto-generated config
 config/binary

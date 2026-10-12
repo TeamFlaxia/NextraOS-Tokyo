@@ -68,6 +68,8 @@ Decision:
 
 Use Waydroid rather than implementing an Android compatibility layer.
 
+Debian Trixie Backports Waydroid `1.6.3+ds-2~bpo13+1` ships a system `waydroid-container.service` with `BusName=id.waydro.Container` and `WantedBy=multi-user.target`. Debian's `dh_installsystemd` enables unit files by default. The live-build hook and Calamares post-install module disable only the boot link with `systemctl --root=... disable waydroid-container.service`, preserving explicit D-Bus/systemd activation even if the installer installs the package; first-start and upgrade behavior still need an installed-system test. References: <https://sources.debian.org/src/waydroid/1.6.3%2Bds-2%7Ebpo13%2B1/systemd/waydroid-container.service/> and <https://manpages.debian.org/trixie/debhelper/dh_installsystemd.1.en.html>.
+
 ---
 
 # Wine / Bottles / Proton
@@ -235,16 +237,12 @@ Requirements:
 - CPU virtualization extensions
 - appropriate permissions
 
-Implementation (Stage 1):
+Historical KDE prototype QEMU notes (not current Niri validation):
 
-- QEMU 10.0.8 tested successfully
-- UEFI via OVMF (`/usr/share/ovmf/OVMF.fd`)
-- VNC display (`:99`) for headless testing
-- User-mode networking with SSH port forward (2222)
-- Known limitation: QEMU monitor input (`sendkey`,
-  `mouse_move`, `mouse_button`) does not reach the
-  Wayland compositor (KWin) reliably. For interactive
-  desktop testing, use a VNC viewer or Spice client.
+- QEMU 10.0.8 and UEFI via OVMF were used in an earlier prototype.
+- That older setup used a VNC display and user-mode networking with SSH port forward (2222).
+- The old input limitation was specific to the KWin prototype; it is not evidence for Niri behavior.
+- The current `tools/run-qemu` uses `virtio-vga-gl` with SDL GL and does not expose VNC/Spice. Keep the GL path when testing the Niri compositor; actual rendering still needs validation.
 
 ---
 
@@ -313,17 +311,9 @@ Implementation (Stage 1):
 
 ---
 
-# KDE Plasma
+# KDE Plasma prototype (historical)
 
-KDE Plasma is the primary desktop environment.
-
-Target:
-
-- Wayland session
-- modern KDE Plasma
-- standard Linux desktop integration
-
-NextraOS should minimize modifications to Plasma.
+The KDE Plasma configuration describes the earlier live-build prototype, not the NextraOS Tokyo target. See ADR 0004 for the deliberate move to Niri + Noctalia v5. Keep the old implementation until the replacement session has a successful QEMU boot and functional integration tests.
 
 ---
 
@@ -346,44 +336,27 @@ is unavailable.
 
 ---
 
-# systemd VM Management
+# systemd VM Management (Tokyo policy)
 
-VM lifecycle is managed via systemd user services.
+VM lifecycle may be managed via systemd user services, but guests must not start automatically on login. Start selected VMs on explicit user action and use local libvirt socket activation for daemon demand.
 
 Decision:
 
-Use systemd user services for VM management.
+Use systemd/libvirt integration for VM management, with on-demand startup and explicit host-resource boundaries.
 
 Benefits:
 
-- Automatic startup on login
+- Guest processes consume resources only when requested
 - Clean shutdown handling
 - Status monitoring
 - Dependency management
-- Integration with KDE Plasma
+- Desktop-independent session integration
 
-Implementation:
+The earlier KDE prototype enabled `libvirtd.service` at boot. Current Tokyo configuration switches selected VM support to `libvirtd.socket`; QEMU/runtime behavior still requires testing.
 
-- Service files in `~/.config/systemd/user/`
-- nextraos-vm.target for grouped control
-- nextraos-macos.service for macOS VM
-- Custom ExecStartPre/ExecStop for setup/cleanup
+Debian Trixie `libvirt-daemon` 11.3.0-3+deb13u3 includes `/usr/lib/systemd/system/libvirtd.socket` (package file list: <https://packages.debian.org/trixie/amd64/libvirt-daemon/filelist>). Upstream documents socket activation for both monolithic and modular daemons: <https://libvirt.org/daemons.html>.
 
-Service Example:
-
-    [Unit]
-    Description=NextraOS macOS VM
-    After=network-online.target
-    
-    [Service]
-    Type=simple
-    ExecStartPre=/usr/local/bin/nextraos-vm-prepare macos
-    ExecStart=/usr/bin/qemu-system-x86_64 [QEMU_ARGS]
-    ExecStop=/usr/local/bin/nextraos-vm-shutdown macos
-    Restart=on-failure
-    
-    [Install]
-    WantedBy=default.target
+The current hooks enable the local `libvirtd.socket` for selected VM support; that service activation and user authorization must be verified in a target install. Do not enable remote TCP/TLS sockets or a default-target VM service. Older service examples in this document describe prototype experiments and are not a current implementation contract.
 
 ---
 
@@ -885,6 +858,73 @@ Alternatives Considered:
 - WinBoat: Docker-based; has GPU passthrough limitations
 - Wine/Bottles: Compatibility issues with many Windows apps
 - Standalone qcow2: Requires separate Windows installation
+
+---
+
+# Niri + Noctalia v5 (Tokyo target)
+
+Research reviewed 2026-10-11 against upstream documentation and Debian/Noctalia package metadata. Niri and Noctalia are included only in the disposable live-build smoke profile; the default KDE image is not the Tokyo target.
+
+## Niri
+
+- Upstream: <https://github.com/niri-wm/niri>
+- Current inspected stable release: v26.04; <https://github.com/niri-wm/niri/releases/tag/v26.04>. The annotated tag points to commit `8ed0da44d974c32c6877d2f4630c314da0717ecb`; GitHub reports the tag unsigned, so pin and verify the full commit rather than trusting the movable tag name.
+- License: GPL-3.0-or-later (release Cargo manifest).
+- Architecture/status: Rust Wayland compositor; upstream describes it as stable for daily use but not a complete desktop. It needs a shell and separate session components.
+- Debian status: no Niri compositor package in Debian Trixie and no upstream Debian APT archive found. Exact-suite package search: <https://packages.debian.org/search?suite=trixie&searchon=names&keywords=niri>.
+- Build: v26.04 requires Rust >=1.85; Trixie's rustc is 1.85.1. The release artifact is a vendor archive, not a binary/deb: `niri-26.04-vendored-dependencies.tar.xz`, SHA-256 `407c525cd78710e72455c48741756857ca47dc32910a42f82cd40992a34beed6`. Upstream's workflow archives `vendor/` only; its generated `.cargo/config.toml` is not included, so an offline package build must preserve and test the Cargo source-replacement config. Use default features and do not build with `--all-features`. The source's version reporter honors `NIRI_BUILD_COMMIT`; the package recipe sets it to the pinned commit.
+- Build dependencies from the v26.04 workflow include GCC/Clang, pkg-config, and Trixie development packages for udev, GBM, xkbcommon, EGL, Wayland, libinput, D-Bus, systemd, libseat, PipeWire, Pango and libdisplay-info. Building the full workspace also uses libadwaita; the project build of only `-p niri` succeeded in Trixie without `libadwaita-1-dev`.
+- Decision: create a project-owned Debian package from the pinned source; include Debian-generated runtime dependencies and explicit `libwayland-server0`. Upstream Cargo Debian metadata adds Alacritty and Fuzzel, which do not match the Noctalia target. The staged recipe in `packages/nextraos-niri/` regenerates Cargo vendoring from the pinned `Cargo.lock`, then builds offline. A fresh Trixie/AMD64 container build succeeded and all 195 Niri unit tests passed; installing the generated package in a second fresh Trixie container resolved runtime dependencies and `niri --version` reported the pinned commit. It is included only in the disposable Niri smoke profile, not the default image. Third-party crate license notice harvesting and systemd-user unit validation still need review. Do not install a moving branch, mix testing/unstable, or use an unreviewed community package as the base.
+- Integration assets: install `niri-session`, `niri.desktop`, `niri.service`, `niri-shutdown.target` and `niri-portals.conf` with the compositor. The session script imports environment into systemd user/D-Bus and starts the compositor service; do not replace it with a raw compositor `Exec`. The upstream default config starts Waybar and binds Alacritty, Fuzzel and Swaylock, so ship and test an NextraOS config that starts Noctalia and uses installed commands. The pinned portal config prefers `gnome;gtk`, routes Access/Notification to GTK, and Secret to GNOME Keyring. Niri's screencasting documentation explicitly requires a D-Bus session, PipeWire, `xdg-desktop-portal-gnome`, and a `niri-session` launch; verify backend behavior and fallback in a real session. Niri upstream recommends `xwayland-satellite` for X11 apps, but Debian Trixie has no such package; do not claim X11 compatibility until a separate package/alternative is reviewed and tested.
+- Security: Niri's security model treats same-session Wayland clients as mutually trusted; untrusted apps need sandboxing, filtered portals and restricted IPC. See <https://niri-wm.github.io/niri/Security-Model.html>.
+
+References:
+
+- <https://niri-wm.github.io/niri/Getting-Started.html>
+- <https://niri-wm.github.io/niri/Packaging-niri.html>
+- <https://github.com/niri-wm/niri/blob/v26.04/.github/workflows/release.yml>
+- <https://doc.rust-lang.org/cargo/commands/cargo-vendor.html>
+- <https://raw.githubusercontent.com/niri-wm/niri/8ed0da44d974c32c6877d2f4630c314da0717ecb/resources/niri-session>
+- <https://raw.githubusercontent.com/niri-wm/niri/8ed0da44d974c32c6877d2f4630c314da0717ecb/resources/niri.service>
+- <https://niri-wm.github.io/niri/Security-Model.html>
+- <https://github.com/niri-wm/niri/blob/8ed0da44d974c32c6877d2f4630c314da0717ecb/docs/wiki/Xwayland.md>
+- <https://packages.debian.org/search?searchon=names&keywords=xwayland-satellite>
+
+## Noctalia v5
+
+- Upstream: <https://github.com/noctalia-dev/noctalia>
+- Inspected release: v5.2.1, <https://github.com/noctalia-dev/noctalia/releases/tag/v5.2.1>.
+- License: MIT; preserve all upstream and vendored third-party notices.
+- Architecture: native C++23 Wayland shell. It is not a compositor, greeter, file manager or screen-casting/drive-mount replacement. Do not use Quickshell-based Noctalia v4 recipes; v5 is a fresh install and does not migrate v4 settings.
+- Debian status: the Noctalia documentation lists a Trixie APT repository, but the repository is community-maintained and is not part of Debian's archive. The current `amd64` package is `noctalia` `5.2.1-1+deb13u1`, SHA-256 `63a0aa02fab9c83edaf0c3a063bb3c3079c7ea3673fa37c8ff18d47c5cae02f7`; the live `Packages` index matched both. The package has a 27,219 KiB installed size and depends on `pipewire`, `git`, and polkit-agent libraries among other runtime libraries; it recommends `upower`, `wtype`, `ddcutil`, and `sound-theme-freedesktop`. A clean `--no-install-recommends` smoke install selected 150 new packages including transitive runtime libraries; this is package count, not a count of active daemons or resident memory.
+- Repository trust: the Trixie `.sources` file is scoped with `Signed-By`. The key fingerprint `C2A7 E07F B3D7 46BD F2A2 45CD 683B 67D7 BC99 A9B7` (expiry 2027-06-01) was checked independently with GPG. A clean Trixie container accepted the signed APT index, downloaded the pinned package, and matched its SHA-256. This authenticates to an individual community packager's key; it is not Debian endorsement or Debian security support.
+- Install/config smoke test: installing the exact package version in a disposable Trixie/AMD64 container with `--no-install-recommends` resolved dependencies; `noctalia --version`, `noctalia --help`, and `noctalia config validate` succeeded against the project TOML profile. The profile selects Secret Service, enables the Noctalia polkit agent and first-run wizard, disables screen-time tracking, telemetry/external-IP lookups, and launcher exchange-rate lookups. This did not start the GUI or connect to a Secret Service provider. Review recommends and the full app lifecycle before selecting components for the image.
+- Decision: prefer mirroring the pinned package, source and build metadata into a NextraOS-controlled signed repository for repeatable builds. If temporarily using the community archive, pin the exact version and hash, verify the signing-key fingerprint, and define update/key-rotation policy. The community archive is configured only for the disposable smoke build chroot, not the default or release image.
+- Integration: upstream Niri guidance starts Noctalia from `spawn-at-startup`; documented IPC binds include `noctalia msg panel-toggle launcher` and `noctalia msg panel-toggle control-center`. The smoke profile starts a `noctalia.service` user unit from Niri instead of launching the shell as an unmanaged child. `BindsTo=niri.service`, `PartOf=niri.service` and `TimeoutStopSec=5s` bound a stale Noctalia process after compositor failure. On a fresh ISO, the unit started with the active Wayland environment and provided layer surfaces; after Niri SIGKILL it reached `failed/timeout` at five seconds and no process remained. Relogin started Niri and Noctalia again. The current prototype ships no plugins. A release configuration must still disable automatic plugin updates and only include reviewed plugins. Shell plugins and shell session components are trusted user-space code.
+- Session dependency smoke: a disposable Trixie container installed the pinned Niri and Noctalia packages with `sddm`, `foot`, `thunar`, NetworkManager, PipeWire/WirePlumber, `xdg-desktop-portal-gnome` + GTK, and `polkitd`; package versions and the Niri KDL parser check passed. A later isolated Noctalia test validated the current TOML profile. Neither test started a display or user session. The candidate set also installed Nautilus and `xserver-xorg-video-all`, exposing a duplicate file-manager choice and a heavier-than-expected greeter path.
+- Secret storage and login: the project TOML profile sets `[storage].key_source = "secret-service"`; pinned Niri's portal config routes the Secret interface to `gnome-keyring`. A Trixie/AMD64 APT simulation with GNOME Keyring and its PAM module selected 485 new-package actions with SDDM versus 420 with greetd + tuigreet for the same candidate desktop dependencies. These counts are not RAM or live-session results. The corrected clean-boot ISO now accepts the `user`/`live` login and starts a `Type=wayland`, `Desktop=niri` session with Noctalia, PipeWire and WirePlumber processes; NetworkManager reports the emulated NIC connected and `wpctl status` lists virtual audio sink/source endpoints. A D-Bus Peer.Ping activated `xdg-desktop-portal`; this does not verify portal workflows, secret unlock, actual playback or network requests. The non-GL GTK QEMU window remained black; later headless Weston/llvmpipe GL testing produced an active guest output and a Niri screenshot, so this limitation is specific to the non-GL path.
+- Full profile resolution: the initial `desktop.list.chroot`, local Niri `.deb`, signed Noctalia source and origin/version pins resolved 451 `Inst` actions in a fresh Trixie/AMD64 `apt-get -s --no-install-recommends` run before explicit `ca-certificates`, `user-setup`, and greeter provisioning were added. The subsequent live-build completed with those additions; rerun a standalone simulation for an exact current count. This is package resolver closure only; it is not an installed-RAM or runtime measurement.
+- Account provisioning: Debian Trixie's live-config 11.0.5 `0030-user-setup` component exits when the `user-setup` package is absent and otherwise creates the configured `username` (its documented default password is `live`). Debian's greetd postinst creates `_greetd` for the daemon, not a `greeter` account for the configured tuigreet process; the test profile must provision that separate unprivileged account. See the [live-config component source](https://sources.debian.org/src/live-config/11.0.5/components/0030-user-setup/).
+- Live boot diagnostics: the first UEFI ISO booted under QEMU/TCG but its live-config automatic tty login failed. `noautologin` removed that race and greetd's VT was moved to 7 to match Debian's unit. The next ISO still failed: the journal showed greetd restarting because its configured `greeter` account did not exist, and the live user `user` was absent because the profile omitted `user-setup`. The corrected profile adds `user-setup` plus a chroot hook creating the separate unprivileged greeter account; the rebuilt ISO clean-boots to tuigreet and accepts `user`/`live`. On this host, default SDL GL fails with `X_GLXCreateNewContext`; GTK GL-on fails with `EGL_BAD_ACCESS` and reports that GTK OpenGL is unsupported. GTK `gl=off` and legacy Bochs VGA show the greeter but leave the post-login desktop black. A timer with tight accuracy confirmed `niri msg --json outputs` returns `{}` while logind reports the Wayland session `Active=yes` on tty7. Restarting Niri while tty7 is active opens `/dev/dri/card0`, but renderer setup reports `kmsro: driver missing`, skips software EGL, and has no allocator. The host has neither `/dev/dri` nor `/dev/kvm`; minimal `virtio-vga-gl` probes with `egl-headless` and SPICE-app GL both exit with `no drm render node available`; `-display none` rejects `virtio-vga-gl` because that backend has no OpenGL support. These probes confirm the direct QEMU EGL/SPICE and host GLX frontends are unavailable; non-GL runs are not a valid Niri rendering test. Surfaceless Mesa EGL does work with llvmpipe: Weston 14 `--backend=headless --renderer=gl` plus QEMU SDL over `SDL_VIDEODRIVER=wayland`, `LIBGL_ALWAYS_SOFTWARE=1` and guest `virtio-vga-gl` under TCG successfully rendered the desktop without a physical GPU. Niri used guest `/dev/dri/renderD128` and `/dev/dri/card0`, reported `Virtual-1` at 1280×800, and Noctalia created wallpaper/bar/panel layer surfaces. `niri msg action screenshot-screen` captured both the launcher and a mapped Foot window (see [the screenshot](assets/niri-weston-launcher.png)). QMP `screendump` still returns `no surface` for GL scanout. This validates headless software-rendered output, not native-GPU performance.
+- DRM/libseat diagnosis: session 3 and Niri's systemd user service both carried `XDG_SESSION_ID=3`, `XDG_SEAT=seat0`, and `XDG_VTNR=7`; `graphical.target`, greetd and the active login session were healthy. Niri's pinned [TTY device-add path](https://github.com/niri-wm/niri/blob/8ed0da44d974c32c6877d2f4630c314da0717ecb/src/backend/tty.rs#L740-L816) opens the primary node through Smithay/libseat before initializing DRM/GBM/EGL. The earlier non-GL run returned EAGAIN on VT resume even though a separate user-level O_RDWR nonblocking open of `/dev/dri/card0` succeeded; forcing `LIBSEAT_BACKEND=logind` or `seatd` did not resolve it, so that path's root cause remains unproven. In the headless Weston/virgl GL run, Ctrl+Alt+F2 then Ctrl+Alt+F7 resumed Niri, retained `Virtual-1`, and did not log EAGAIN. Smithay maps libseat's device-open errno directly ([pinned session backend](https://github.com/Smithay/smithay/blob/ff5fa7df392cecfba049ffed55cdaa4e98a8e7ef/src/backend/session/libseat.rs)); systemd documents asynchronous pause/resume semantics for login1 device FDs ([Session objects](https://www.freedesktop.org/software/systemd/man/latest/org.freedesktop.login1.html#Session%20Objects)). Keep the earlier failure distinct from the tested virgl path. QEMU documents that its 2D VirtIO GPU path uses guest software rendering, whereas `virtio-vga-gl` provides the GL path ([VirtIO GPU](https://www.qemu.org/docs/master/system/devices/virtio/virtio-gpu.html)); pinned Niri skips software EGL, but host llvmpipe through Weston GL can still supply QEMU's virtual GL device.
+
+References:
+
+- <https://docs.noctalia.dev/noctalia/getting-started/installation/>
+- <https://docs.noctalia.dev/noctalia/compositor-settings/niri/>
+- <https://docs.noctalia.dev/noctalia/getting-started/running-the-shell/>
+- <https://docs.noctalia.dev/noctalia/configuration/>
+- <https://docs.noctalia.dev/noctalia/configuration/secret-service/>
+- <https://niri-wm.github.io/niri/Screencasting.html>
+- <https://packages.debian.org/trixie/greetd>
+- <https://packages.debian.org/trixie/tuigreet>
+- <https://manpages.debian.org/trixie/live-config-doc/live-config.7.en.html>
+- <https://raw.githubusercontent.com/niri-wm/niri/8ed0da44d974c32c6877d2f4630c314da0717ecb/resources/niri-portals.conf>
+- <https://pkg.noctalia.dev/deb/noctalia-trixie.sources>
+- <https://pkg.noctalia.dev/deb/trixie/InRelease>
+- <https://pkg.noctalia.dev/deb/nickh-archive-keyring.gpg>
+
+Neither Niri nor Noctalia upstream guarantees the Tokyo <1024 MiB idle-memory target. Measure the composed, pinned system using [the benchmark procedure](MEMORY-BENCHMARK.md).
 
 ---
 

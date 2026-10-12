@@ -1,0 +1,68 @@
+// NextraOS Niri + Noctalia v5 configuration prototype.
+// This is validated separately and is not installed or enabled in live-build yet.
+
+input {
+    keyboard {
+        xkb {}
+    }
+
+    touchpad {
+        tap
+        natural-scroll
+    }
+}
+
+layout {
+    gaps 8
+    default-column-width { proportion 0.5; }
+}
+
+// The user unit is bound to niri.service so a compositor crash cannot leave
+// a stale Noctalia instance attached to a dead Wayland socket.
+spawn-at-startup "systemctl" "--user" "start" "noctalia.service"
+
+binds {
+    Mod+Shift+Slash { show-hotkey-overlay; }
+
+    Mod+Return hotkey-overlay-title="Open terminal (foot)" { spawn "foot"; }
+    Mod+Space hotkey-overlay-title="Open Noctalia launcher" {
+        spawn-sh "noctalia msg panel-toggle launcher";
+    }
+    Mod+S hotkey-overlay-title="Open Noctalia control center" {
+        spawn-sh "noctalia msg panel-toggle control-center";
+    }
+    Mod+Comma hotkey-overlay-title="Open Noctalia settings" {
+        spawn-sh "noctalia msg settings-toggle";
+    }
+
+    Mod+Q { close-window; }
+    Mod+Left { focus-column-left; }
+    Mod+Down { focus-window-down; }
+    Mod+Up { focus-window-up; }
+    Mod+Right { focus-column-right; }
+    Mod+Ctrl+Left { move-column-left; }
+    Mod+Ctrl+Right { move-column-right; }
+
+    Mod+1 { focus-workspace 1; }
+    Mod+2 { focus-workspace 2; }
+    Mod+3 { focus-workspace 3; }
+    Mod+4 { focus-workspace 4; }
+    Mod+5 { focus-workspace 5; }
+    Mod+6 { focus-workspace 6; }
+    Mod+7 { focus-workspace 7; }
+    Mod+8 { focus-workspace 8; }
+    Mod+9 { focus-workspace 9; }
+
+    XF86AudioRaiseVolume allow-when-locked=true {
+        spawn-sh "wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.1+ -l 1.0";
+    }
+    XF86AudioLowerVolume allow-when-locked=true {
+        spawn-sh "wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.1-";
+    }
+    XF86AudioMute allow-when-locked=true {
+        spawn-sh "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle";
+    }
+
+    Print { screenshot; }
+    Mod+Shift+E { quit; }
+}

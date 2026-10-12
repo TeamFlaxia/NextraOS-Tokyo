@@ -1,0 +1,221 @@
+#!/usr/bin/env bash
+set -euo pipefail
+shopt -s nullglob
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
+PROFILE_DIR="$PROJECT_DIR/build/profiles/niri-test"
+DIST_DIR="$PROJECT_DIR/dist"
+NIRI_DEB="$DIST_DIR/packages/nextraos-niri_26.04-1_amd64.deb"
+ISO_OUT="$DIST_DIR/nextraos-niri-test-amd64.iso"
+ISO_TEMP=""
+NOCTALIA_VERSION="5.2.1-1+deb13u1"
+NOCTALIA_FINGERPRINT="C2A7E07FB3D746BDF2A245CD683B67D7BC99A9B7"
+NOCTALIA_KEY_URL="https://pkg.noctalia.dev/deb/nickh-archive-keyring.gpg"
+
+fail() {
+    echo "ERROR: $*" >&2
+    exit 1
+}
+
+usage() {
+    printf 'Usage: %s\n' "${0##*/}"
+    printf 'Build an isolated Niri + Noctalia desktop smoke ISO.\n'
+    printf 'Requires the pinned Niri package in dist/packages and live-build tools.\n'
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    usage
+    exit 0
+fi
+[[ $# -eq 0 ]] || fail "This builder accepts no arguments."
+
+for command in lb sudo curl gpg dpkg-deb tar realpath; do
+    command -v "$command" >/dev/null || fail "Required command not found: $command"
+done
+
+[[ $(id -u) -ne 0 ]] || fail "Run as a normal user; this script invokes sudo for live-build."
+[[ -f "$PROFILE_DIR/desktop.list.chroot" ]] || fail "Niri test profile is incomplete: $PROFILE_DIR"
+grep -Fqx "noctalia=$NOCTALIA_VERSION" "$PROFILE_DIR/desktop.list.chroot" || fail "Noctalia package version pin does not match the build script"
+[[ -f "$NIRI_DEB" ]] || fail "Build the pinned Niri package first: $NIRI_DEB"
+[[ $(dpkg-deb -f "$NIRI_DEB" Package) == "nextraos-niri" ]] || fail "Unexpected package name in $NIRI_DEB"
+[[ $(dpkg-deb -f "$NIRI_DEB" Version) == "26.04-1" ]] || fail "Unexpected Niri package version in $NIRI_DEB"
+[[ $(dpkg-deb -f "$NIRI_DEB" Architecture) == "amd64" ]] || fail "Niri package is not AMD64: $NIRI_DEB"
+
+mkdir -p "$DIST_DIR"
+DIST_DIR=$(realpath -e -- "$DIST_DIR")
+[[ ! -e "$ISO_OUT" && ! -L "$ISO_OUT" ]] || fail "Refusing to overwrite existing ISO or symlink: $ISO_OUT"
+
+STAGING_ROOT_EXPECTED="$DIST_DIR/.niri-test-build"
+mkdir -p "$STAGING_ROOT_EXPECTED"
+STAGING_ROOT=$(realpath -e -- "$STAGING_ROOT_EXPECTED")
+[[ "$STAGING_ROOT" == "$STAGING_ROOT_EXPECTED" ]] || fail "Unexpected staging root: $STAGING_ROOT"
+STAGING=$(mktemp -d "$STAGING_ROOT/staging.XXXXXX")
+STAGING=$(realpath -e -- "$STAGING")
+case "$STAGING" in
+    "$STAGING_ROOT"/staging.*) ;;
+    *) fail "Unexpected staging directory: $STAGING" ;;
+esac
+
+BUILD_LOG="$DIST_DIR/niri-test-build-$(date +%Y%m%d-%H%M%S)-$$.log"
+
+cleanup() {
+    local status=$?
+    trap - EXIT
+    if [[ -n "${STAGING:-}" && -d "$STAGING" ]]; then
+        local resolved
+        resolved=$(realpath -e -- "$STAGING") || {
+            echo "ERROR: Cannot resolve staging directory; leaving it untouched: $STAGING" >&2
+            exit "$status"
+        }
+        case "$resolved" in
+            "$STAGING_ROOT"/staging.*) sudo rm -rf -- "$resolved" || status=$? ;;
+            *)
+                echo "ERROR: Refusing to remove unexpected staging path: $resolved" >&2
+                status=1
+                ;;
+        esac
+    fi
+    if [[ -n "${ISO_TEMP:-}" && ( -e "$ISO_TEMP" || -L "$ISO_TEMP" ) ]]; then
+        local resolved_iso_temp
+        resolved_iso_temp=$(realpath -e -- "$ISO_TEMP") || {
+            echo "ERROR: Cannot resolve temporary ISO copy; leaving it untouched: $ISO_TEMP" >&2
+            exit "$status"
+        }
+        case "$resolved_iso_temp" in
+            "$DIST_DIR"/.niri-test-iso.*) rm -f -- "$resolved_iso_temp" || status=$? ;;
+            *)
+                echo "ERROR: Refusing to remove unexpected temporary ISO: $resolved_iso_temp" >&2
+                status=1
+                ;;
+        esac
+    fi
+    exit "$status"
+}
+trap cleanup EXIT
+
+# Build from a disposable copy so the historical KDE configuration is untouched.
+tar \
+    --exclude=./.git \
+    --exclude=./dist \
+    --exclude=./build.log \
+    --exclude=./binary \
+    --exclude=./chroot \
+    --exclude=./cache \
+    --exclude=./live-image-*.iso \
+    -C "$PROJECT_DIR" -cf - . | tar -C "$STAGING" -xf -
+
+cd "$STAGING"
+
+# Replace the KDE package list and omit apps/runtimes/installer from this desktop-only smoke image.
+cp -- "$PROFILE_DIR/desktop.list.chroot" config/package-lists/desktop.list.chroot
+for relative in \
+    config/package-lists/apps.list.chroot \
+    config/package-lists/waydroid.list.chroot \
+    config/package-lists/installer.list.chroot \
+    config/hooks/live/0080-nextraos-calamares-setup.hook.chroot \
+    config/hooks/live/0090-nextraos-remove-bloat.hook.chroot \
+    config/hooks/live/0095-nextraos-install-vscodium.hook.chroot \
+    config/hooks/live/0110-nextraos-flatpak-setup.hook.chroot \
+    config/hooks/live/0120-nextraos-opencode-setup.hook.chroot \
+    config/hooks/live/0130-nextraos-waydroid-setup.hook.chroot \
+    config/hooks/live/0140-nextraos-windows-vm-setup.hook.chroot \
+    config/hooks/live/0150-nextraos-macos-vm-setup.hook.chroot \
+    config/hooks/live/0160-nextraos-vm-lifecycle-setup.hook.chroot \
+    config/hooks/live/0170-nextraos-hardening-setup.hook.chroot \
+    config/includes.chroot/etc/calamares \
+    config/includes.chroot/etc/sudoers.d/calamares \
+    config/includes.chroot/etc/xdg/kicker-extra-favoritesrc \
+    config/includes.chroot/etc/xdg/plasmarc \
+    config/includes.chroot/etc/xdg/mimeapps.list \
+    config/includes.chroot/etc/sddm.conf.d/autologin.conf \
+    config/includes.chroot/etc/systemd/system-sleep.d/nextraos-vm-suspend \
+    config/includes.chroot/etc/systemd/user/windows-vm.service \
+    config/includes.chroot/etc/systemd/user/vm-auto-suspend.service \
+    config/includes.chroot/etc/skel/.config/systemd/user \
+    config/includes.chroot/etc/systemd/system/waydroid-init.service \
+    config/includes.chroot/etc/systemd/system/waydroid-binderfs.service \
+    config/includes.chroot/etc/systemd/system/waydroid-container.service.d \
+    config/includes.chroot/usr/share/plasma \
+    config/includes.chroot/usr/share/mime/packages/windows-executables.xml \
+    config/includes.chroot/usr/share/applications/windows-apps.desktop \
+    config/includes.chroot/usr/share/applications/macos-apps.desktop \
+    config/includes.chroot/usr/share/applications/nextraos-macos-handler.desktop \
+    config/includes.chroot/usr/share/applications/nextraos-exe-handler.desktop \
+    config/includes.chroot/usr/share/applications/nextraos-installer.desktop \
+    config/includes.chroot/usr/share/applications/calamares.desktop \
+    config/includes.chroot/usr/share/applications/waydroid.desktop \
+    config/includes.chroot/usr/lib/calamares \
+    config/includes.chroot/usr/local/bin/nextraos-harden.sh \
+    config/includes.chroot/usr/local/bin/vm-suspend-hook.sh \
+    config/includes.chroot/usr/local/bin/nextraos-vm-fallback \
+    config/includes.chroot/usr/local/bin/vm-auto-suspend.sh \
+    config/includes.chroot/usr/local/bin/macos-vm.sh \
+    config/includes.chroot/usr/local/bin/waydroid-desktop-entries.sh \
+    config/includes.chroot/usr/local/bin/windows-vm.sh \
+    config/includes.chroot/usr/local/bin/nextraos-vm \
+    config/includes.chroot/usr/local/bin/windows-exec-handler.sh \
+    config/includes.chroot/usr/local/bin/nextraos-exe-handler \
+    config/includes.chroot/usr/local/bin/nextraos-macos-handler \
+    config/includes.chroot/usr/local/bin/nextraos-postinstall \
+    config/includes.chroot/usr/local/bin/waydroid-init.sh
+do
+    target=$(realpath -m -- "$STAGING/$relative")
+    case "$target" in
+        "$STAGING"/*) rm -rf -- "$target" ;;
+        *) fail "Refusing to remove a path outside staging: $target" ;;
+    esac
+done
+
+install -D -m 0644 "$PROJECT_DIR/build/profiles/niri-test/noctalia.list.chroot" \
+    config/archives/noctalia.list.chroot
+install -D -m 0644 "$PROJECT_DIR/build/profiles/niri-test/noctalia.pref.chroot" \
+    config/archives/noctalia.pref.chroot
+install -D -m 0644 "$PROFILE_DIR/greetd-config.toml" \
+    config/includes.chroot/etc/greetd/config.toml
+install -D -m 0755 "$PROFILE_DIR/greetd-user.hook.chroot" \
+    config/hooks/normal/0050-nextraos-greeter-user.hook.chroot
+install -D -m 0644 "$PROFILE_DIR/20auto-upgrades" \
+    config/includes.chroot/etc/apt/apt.conf.d/20auto-upgrades
+install -D -m 0644 "$PROJECT_DIR/packages/nextraos-niri/nextraos-config.kdl" \
+    config/includes.chroot/etc/skel/.config/niri/config.kdl
+install -D -m 0644 "$PROJECT_DIR/packages/nextraos-niri/noctalia-config.toml" \
+    config/includes.chroot/etc/skel/.config/noctalia/config.toml
+install -D -m 0644 "$PROFILE_DIR/noctalia.service" \
+    config/includes.chroot/usr/lib/systemd/user/noctalia.service
+install -D -m 0644 "$NIRI_DEB" config/packages.chroot/nextraos-niri_26.04-1_amd64.deb
+
+KEY_PATH="$STAGING/config/archives/noctalia.key.chroot"
+install -d -m 0700 "$STAGING/.gnupg"
+curl -fsSL "$NOCTALIA_KEY_URL" -o "$KEY_PATH"
+FINGERPRINT=$(GNUPGHOME="$STAGING/.gnupg" gpg --batch --homedir "$STAGING/.gnupg" \
+    --show-keys --with-colons "$KEY_PATH" | awk -F: '$1 == "fpr" { print $10; exit }')
+[[ "$FINGERPRINT" == "$NOCTALIA_FINGERPRINT" ]] || fail "Noctalia signing key fingerprint mismatch: $FINGERPRINT"
+
+install -d -m 0755 config/packages.chroot
+# Live-config's default autologin races greetd and can bypass this test profile's greeter.
+sed -i 's/locales=en_US.UTF-8"/locales=en_US.UTF-8 noautologin console=ttyS0"/' auto/config
+grep -Fq -- '--bootappend-live "boot=live components quiet username=user hostname=nextraos locales=en_US.UTF-8 noautologin console=ttyS0"' auto/config || fail "Could not set the staged live boot and serial-console options"
+# Seed CA roots during debootstrap so the first chroot APT update can verify HTTPS.
+./auto/config --debootstrap-options "--include=ca-certificates" --apt-recommends false
+
+printf 'Building isolated Niri + Noctalia live image\n'
+printf '  Staging: %s\n  Log:     %s\n' "$STAGING" "$BUILD_LOG"
+sudo lb build 2>&1 | tee "$BUILD_LOG"
+
+ISO_FILES=("$STAGING"/live-image-*.iso)
+((${#ISO_FILES[@]} == 1)) || fail "Expected one ISO, found ${#ISO_FILES[@]}"
+# Copy as the build user, then atomically publish without following/overwriting links.
+ISO_TEMP=$(mktemp "$DIST_DIR/.niri-test-iso.XXXXXX")
+ISO_TEMP=$(realpath -e -- "$ISO_TEMP")
+case "$ISO_TEMP" in
+    "$DIST_DIR"/.niri-test-iso.*) ;;
+    *) fail "Unexpected temporary ISO copy path: $ISO_TEMP" ;;
+esac
+cp -- "${ISO_FILES[0]}" "$ISO_TEMP"
+chmod 0644 -- "$ISO_TEMP"
+mv -nT -- "$ISO_TEMP" "$ISO_OUT" || fail "Could not publish ISO without overwriting an existing path: $ISO_OUT"
+[[ ! -e "$ISO_TEMP" && ! -L "$ISO_TEMP" ]] || fail "Output path appeared during build; refusing to replace it: $ISO_OUT"
+ISO_TEMP=""
+printf 'Built test ISO: %s\n' "$ISO_OUT"
+ls -lh -- "$ISO_OUT"

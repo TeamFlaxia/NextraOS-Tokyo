@@ -1,0 +1,7 @@
+Package: *
+Pin: origin pkg.noctalia.dev
+Pin-Priority: 1
+
+Package: noctalia noctalia-data fonts-noctalia-tabler
+Pin: origin pkg.noctalia.dev
+Pin-Priority: 1001

@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
+cd "$PROJECT_DIR"
+
+command -v bash >/dev/null || { echo "bash is required" >&2; exit 1; }
+command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 1; }
+
+for script in \
+    build/build-iso \
+    build/build-niri-test-iso \
+    tools/build-niri-package \
+    tools/test-noctalia-package \
+    tools/measure-idle-memory \
+    config/includes.chroot/usr/local/bin/waydroid-init.sh \
+    config/includes.chroot/usr/local/bin/nextraos-postinstall; do
+    bash -n "$script"
+done
+./tools/build-niri-package --help >/dev/null
+test -x build/build-niri-test-iso
+./build/build-niri-test-iso --help >/dev/null
+command -v make >/dev/null || { echo "make is required for Debian rules checks" >&2; exit 1; }
+make -f packages/nextraos-niri/debian/rules -n override_dh_auto_build >/dev/null
+make -f packages/nextraos-niri/debian/rules -n override_dh_auto_install >/dev/null
+
+for script in \
+    config/hooks/live/0130-nextraos-waydroid-setup.hook.chroot \
+    config/hooks/live/0140-nextraos-windows-vm-setup.hook.chroot \
+    config/hooks/live/0150-nextraos-macos-vm-setup.hook.chroot \
+    tools/run-qemu \
+    tools/run-qemu-bios \
+    tools/run-qemu-install \
+    tools/qemu-common.sh; do
+    sh -n "$script"
+done
+
+OVMF_VARS_TEMPLATE=/usr/share/OVMF/OVMF_VARS_4M.fd
+if [[ -r "$OVMF_VARS_TEMPLATE" ]]; then
+    sh -c 'set -eu
+        . "$1"
+        nextraos_create_ovmf_vars_copy "$2"
+        copy=$OVMF_VARS_COPY
+        trap nextraos_remove_ovmf_vars_copy EXIT
+        cmp -s "$2" "$copy"
+        nextraos_remove_ovmf_vars_copy
+        trap - EXIT
+        test ! -e "$copy"
+    ' sh "$PROJECT_DIR/tools/qemu-common.sh" "$OVMF_VARS_TEMPLATE"
+fi
+
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py' -v
+./tools/measure-idle-memory --help >/dev/null
+
+TEST_TMP=$(mktemp -d "$PROJECT_DIR/.nextraos-test.XXXXXX")
+case "$TEST_TMP" in
+    "$PROJECT_DIR"/.nextraos-test.*) ;;
+    *) echo "Refusing unexpected temporary directory: $TEST_TMP" >&2; exit 1 ;;
+esac
+cleanup() {
+    case "${TEST_TMP:-}" in
+        "$PROJECT_DIR"/.nextraos-test.*) rm -rf -- "$TEST_TMP" ;;
+        *) echo "Skipping cleanup for unexpected path: ${TEST_TMP:-unset}" >&2 ;;
+    esac
+}
+trap cleanup EXIT
+
+if command -v systemctl >/dev/null 2>&1; then
+    SYSTEMD_TEST_ROOT="$TEST_TMP/systemd-root"
+    SYSTEMD_WANTS="$SYSTEMD_TEST_ROOT/etc/systemd/system/multi-user.target.wants"
+    mkdir -p "$SYSTEMD_TEST_ROOT/usr/lib/systemd/system" "$SYSTEMD_WANTS"
+    printf '[Unit]\nDescription=Test Waydroid service\n[Service]\nExecStart=/bin/true\n[Install]\nWantedBy=multi-user.target\n' \
+        > "$SYSTEMD_TEST_ROOT/usr/lib/systemd/system/waydroid-container.service"
+    ln -s /usr/lib/systemd/system/waydroid-container.service \
+        "$SYSTEMD_WANTS/waydroid-container.service"
+    systemctl --root="$SYSTEMD_TEST_ROOT" disable waydroid-container.service >/dev/null
+    [[ ! -L "$SYSTEMD_WANTS/waydroid-container.service" ]] || {
+        echo "systemctl --root did not remove the boot activation link" >&2
+        exit 1
+    }
+fi
+
+./tools/measure-idle-memory --output "$TEST_TMP/smoke.csv" --samples 0
+PYTHONDONTWRITEBYTECODE=1 python3 - "$TEST_TMP/smoke.csv" <<'PY'
+import csv
+import pathlib
+import sys
+
+csv_path = pathlib.Path(sys.argv[1])
+with csv_path.open(newline="", encoding="utf-8") as stream:
+    rows = list(csv.DictReader(stream))
+assert len(rows) == 1, f"expected one sample, found {len(rows)}"
+row = rows[0]
+assert None not in row, f"CSV row has extra fields: {row!r}"
+assert len(row) == 14, f"unexpected CSV columns: {row.keys()}"
+for key in (
+    "mem_total_mib",
+    "mem_available_mib",
+    "mem_used_mib",
+    "system_pss_mib",
+    "zram_mem_used_mib",
+):
+    assert float(row[key]) >= 0, f"invalid {key}: {row[key]!r}"
+assert int(row["uptime_seconds"]) >= 0
+assert pathlib.Path(csv_path.with_suffix(".metadata.txt")).is_file()
+PY
+
+if ./tools/measure-idle-memory --output "$TEST_TMP/invalid.csv" --samples 5,4 >/dev/null 2>&1; then
+    echo "Collector accepted out-of-order sample times" >&2
+    exit 1
+fi
+[[ ! -e "$TEST_TMP/invalid.csv" ]] || {
+    echo "Collector created output for invalid sample times" >&2
+    exit 1
+}
+printf 'sentinel\n' > "$TEST_TMP/existing.csv"
+if ./tools/measure-idle-memory --output "$TEST_TMP/existing.csv" --samples 0 >/dev/null 2>&1; then
+    echo "Collector overwrote an existing CSV" >&2
+    exit 1
+fi
+[[ "$(<"$TEST_TMP/existing.csv")" == sentinel ]] || {
+    echo "Collector modified an existing CSV" >&2
+    exit 1
+}
+
+echo "Policy, Niri package and test-image profile, Noctalia pin/config, QEMU fallback, systemd activation and collector smoke tests passed. Building/booting the ISO, runtime lifecycle and 4/8/16 GiB acceptance remain integration tests."

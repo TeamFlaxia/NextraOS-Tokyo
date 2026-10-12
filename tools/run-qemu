@@ -6,7 +6,12 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DIST_DIR="$PROJECT_DIR/dist"
 ISO_NAME="nextraos-live-amd64.iso"
 
-ISO_FILE="${1:-$DIST_DIR/$ISO_NAME}"
+if [ "$#" -gt 0 ]; then
+    ISO_FILE=$1
+    shift
+else
+    ISO_FILE="$DIST_DIR/$ISO_NAME"
+fi
 
 if [ ! -f "$ISO_FILE" ]; then
     echo "ERROR: ISO not found: $ISO_FILE"
@@ -15,32 +20,35 @@ if [ ! -f "$ISO_FILE" ]; then
 fi
 
 OVMF_CODE="/usr/share/OVMF/OVMF_CODE_4M.fd"
-OVMF_VARS="/usr/share/OVMF/OVMF_VARS_4M.fd"
+OVMF_VARS_TEMPLATE="/usr/share/OVMF/OVMF_VARS_4M.fd"
 
-if [ ! -f "$OVMF_CODE" ]; then
-    echo "WARNING: OVMF not found at $OVMF_CODE"
+if [ ! -f "$OVMF_CODE" ] || [ ! -f "$OVMF_VARS_TEMPLATE" ]; then
+    echo "WARNING: OVMF firmware is incomplete ($OVMF_CODE / $OVMF_VARS_TEMPLATE)"
     echo "Falling back to BIOS boot..."
-    exec "$0" --bios "$@"
+    exec "$SCRIPT_DIR/run-qemu-bios" "$ISO_FILE" "$@"
 fi
+
+. "$SCRIPT_DIR/qemu-common.sh"
+nextraos_create_ovmf_vars_copy "$OVMF_VARS_TEMPLATE"
+trap nextraos_remove_ovmf_vars_copy EXIT
 
 echo "==> NextraOS QEMU (UEFI)"
 echo "    ISO: $ISO_FILE"
 echo ""
 
-exec qemu-system-x86_64 \
+nextraos_qemu \
     -name "NextraOS" \
     -m 4G \
     -smp 2 \
-    -enable-kvm \
-    -cpu host \
     -drive if=pflash,format=raw,readonly=on,file="$OVMF_CODE" \
-    -drive if=pflash,format=raw,file="$OVMF_VARS" \
+    -drive if=pflash,format=raw,file="$OVMF_VARS_COPY" \
     -drive file="$ISO_FILE",format=raw,media=cdrom \
-    -device virtio-vga-gl \
-    -display sdl,gl=on \
     -device qemu-xhci \
     -device usb-tablet \
     -device usb-kbd \
+    -audiodev sdl,id=audio0 \
+    -device intel-hda \
+    -device hda-duplex,audiodev=audio0 \
     -netdev user,id=net0,hostfwd=tcp::2222-:22 \
     -device virtio-net-pci,netdev=net0 \
     "$@"

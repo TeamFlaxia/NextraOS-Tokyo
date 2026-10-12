@@ -61,7 +61,7 @@ fi
 # 3. Windows VM setup
 if has_component "windows"; then
     log "Setting up Windows VM support..."
-    systemctl enable libvirtd 2>/dev/null || true
+    systemctl enable libvirtd.socket 2>/dev/null || true
     usermod -aG libvirt "$SUDO_USER" 2>/dev/null || true
     log "Windows VM setup complete"
 fi
@@ -69,7 +69,7 @@ fi
 # 4. macOS VM setup (Experimental)
 if has_component "macos"; then
     log "Setting up macOS VM support (experimental)..."
-    systemctl enable libvirtd 2>/dev/null || true
+    systemctl enable libvirtd.socket 2>/dev/null || true
     usermod -aG libvirt "$SUDO_USER" 2>/dev/null || true
     log "macOS VM setup complete"
 fi

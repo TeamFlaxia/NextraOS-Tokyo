@@ -98,9 +98,12 @@ Example:
         Android
         Windows compatibility
 
-    Required:
-        8 GB RAM recommended
-        XX GB storage
+    Hardware profile:
+        4 GB RAM — constrained desktop; one guest/runtime at a time
+        8 GB RAM — full-feature minimum, not a comfortable multitasking target
+        16 GB RAM — recommended baseline
+        32 GB+ — preferred for several heavy environments together
+        XX GB storage — calculated from selected packages and guest images
 
 If Windows VM is selected:
 
@@ -139,7 +142,7 @@ The installer must distinguish:
     [x] contrib
     [x] non-free
 
-    KDE Plasma + Wayland
+    Niri + Noctalia v5 + Wayland
 
 The default selection should be conservative.
 
@@ -180,7 +183,7 @@ Suggested sequence:
 3. validate network
 4. partition disk
 5. install Debian base
-6. install KDE
+6. install the verified Niri + Noctalia session and core desktop integration
 7. install selected runtimes
 8. install selected applications
 9. configure services

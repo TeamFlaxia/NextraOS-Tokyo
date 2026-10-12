@@ -1,5 +1,7 @@
 # NextraOS Desktop Integration
 
+> Historical design notes for the earlier KDE-based prototype. This is not evidence that all listed integrations work, and KDE-specific instructions are not the Tokyo target. See [the current architecture](ARCHITECTURE.md), [roadmap](ROADMAP.md), and [ADR 0004](adr/0004-niri-noctalia-desktop.md) before implementing desktop behavior.
+
 ## Philosophy
 
 All supported applications should appear to the user as normal

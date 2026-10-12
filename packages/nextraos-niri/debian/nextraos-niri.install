@@ -1,0 +1,7 @@
+usr/bin/niri
+usr/bin/niri-session
+usr/share/wayland-sessions/niri.desktop
+usr/share/xdg-desktop-portal/niri-portals.conf
+usr/lib/systemd/user/niri.service
+usr/lib/systemd/user/niri-shutdown.target
+usr/share/doc/nextraos-niri/LICENSE

@@ -1,0 +1,40 @@
+# Minimal live Niri + Noctalia session smoke profile.
+# Keep recommended shell features explicit while disabling APT recommends.
+nextraos-niri=26.04-1
+noctalia=5.2.1-1+deb13u1
+
+# Login and core desktop apps
+greetd
+tuigreet
+user-setup
+foot
+nautilus
+sudo
+
+# User-session plumbing, authentication, and core services
+dbus-user-session
+network-manager
+pipewire
+wireplumber
+pipewire-pulse
+pipewire-alsa
+polkitd
+gnome-keyring
+libpam-gnome-keyring
+
+# Portals required by Niri, including screen casting
+xdg-desktop-portal
+xdg-desktop-portal-gnome
+xdg-desktop-portal-gtk
+
+# Explicit subset of Noctalia recommendations
+upower
+wtype
+ddcutil
+sound-theme-freedesktop
+
+# Baseline maintenance, TLS trust, and resource handling
+ca-certificates
+unattended-upgrades
+systemd-zram-generator
+xdg-user-dirs

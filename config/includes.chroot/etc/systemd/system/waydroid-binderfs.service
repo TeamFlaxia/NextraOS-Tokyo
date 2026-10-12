@@ -21,5 +21,4 @@ ExecStart=/bin/bash -c ' \
 ExecStop=/bin/bash -c 'umount /dev/binderfs || true'
 RemainAfterExit=yes
 
-[Install]
-WantedBy=multi-user.target
+# Started on demand by waydroid-init.service.

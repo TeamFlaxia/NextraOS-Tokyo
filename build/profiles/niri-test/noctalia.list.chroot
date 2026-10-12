@@ -1,0 +1,2 @@
+deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/noctalia.key.chroot.gpg] https://pkg.noctalia.dev/deb trixie/
+deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/noctalia.key.chroot.gpg] https://pkg.noctalia.dev/deb trixie-backports/

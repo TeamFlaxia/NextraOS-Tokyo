@@ -1,144 +1,53 @@
-# NextraOS
+# NextraOS Tokyo
 
 > One Desktop. Every App.
+>
+> Minimal Host. Maximum Guest Performance.
 
-NextraOS is an experimental Debian-based desktop Linux distribution
-designed to provide a unified Wayland desktop for applications from
-multiple operating-system ecosystems.
+NextraOS Tokyo is an experimental Debian-based Wayland OS project. It aims to keep the host lean and persistent while launching native Linux apps, Android apps through Waydroid, and virtual machines through QEMU/KVM.
 
-## Vision
+## Target architecture
 
-NextraOS combines:
+- Debian 13 (Trixie), AMD64
+- Niri compositor + Noctalia v5 shell
+- systemd, APT/dpkg, NetworkManager, PipeWire/WirePlumber
+- Persistent installed system; Android and VMs start on demand
 
-- Linux applications
-- Windows applications
-- Android applications
-- experimental macOS applications
+The idle target is below 1024 MiB of host memory in use; 850 MiB is a development goal. **Neither target is verified yet.** The 4/8/16 GB profiles are test profiles, not a promise that heavy guests can run simultaneously. See [hardware guidance](docs/MEMORY-BENCHMARK.md).
 
-into one desktop environment.
+## Project status
 
-The user should not need to care whether an application is running
-natively, through a compatibility layer, inside a container, or inside
-a virtual machine.
+The repository's default live-build path remains an older KDE Plasma prototype; its historical QEMU results do not validate the Tokyo target. The pinned Niri package built in a fresh Trixie/AMD64 container, passed 195 upstream tests, and installed with a pinned-version smoke check. Noctalia v5's Trixie package signing key, hash, install, CLI and current TOML profile were smoke-tested; the Niri KDL profile passes the pinned compositor's validator. A freshly rebuilt reversible Niri smoke ISO booted through its UEFI live menu to tuigreet, accepted the serial `user`/`live` login, and starts Niri, Noctalia, PipeWire/WirePlumber and NetworkManager. On this host, which has no `/dev/dri`, `/dev/kvm`, usable GLX or ALSA default PCM, a headless Weston/llvmpipe GL bridge with QEMU `virtio-vga-gl` under TCG verifies Niri's `Virtual-1` 1280×800 output, Noctalia bar/launcher, and a mapped Foot window; see the [launcher screenshot](docs/assets/niri-weston-launcher.png). On the fresh ISO, VT resume worked without EAGAIN; after compositor SIGKILL, greetd returned, systemd removed the Noctalia process at its five-second stop timeout (`Result=timeout`), and relogin restarted both. Stage 1 is still incomplete: portal workflows, actual audio playback, shell-driven shutdown/logout, installation persistence, and memory targets remain open, and the software-rendered path is not native-GPU performance evidence. The root KDE desktop package list remains selected, while shared Waydroid/libvirt hooks have separate on-demand activation changes. Do not treat the KDE ISO as the Tokyo target or as production-ready.
 
-## Target Stack
+See the [roadmap](docs/ROADMAP.md), [Niri desktop ADR](docs/adr/0004-niri-noctalia-desktop.md), [test-profile ADR](docs/adr/0005-reversible-niri-test-profile.md), [research](docs/RESEARCH.md), and [development guide](docs/DEVELOPMENT.md).
 
-- Debian Trixie
-- KDE Plasma
-- Wayland
-- PipeWire
-- NetworkManager
-- APT
-- Flatpak
-- VSCodium
-- Waydroid
-- QEMU / KVM
+## Build and test
 
-The actual implementation may change as research progresses.
+The standard `./build/build-iso` still builds the KDE prototype. The isolated test profile requires the pinned Niri `.deb` first and does not modify the default package list:
 
-## Design Principle
+```sh
+./tools/build-niri-package
+./build/build-niri-test-iso
+./tools/run-qemu dist/nextraos-niri-test-amd64.iso
+```
 
-NextraOS does not attempt to recreate other operating systems.
+The live-build path is Debian Trixie/AMD64 and needs network access plus root privileges for debootstrap/chroot. The smoke ISO clean-boots to the greeter and accepts the live `user`/`live` login. Direct GTK/standard-VGA non-GL modes are only login/diagnostic paths. For hosts without GLX, follow the headless Weston/llvmpipe procedure in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) to test `virtio-vga-gl` under QEMU/TCG and capture the guest desktop with `niri msg action screenshot-screen`; this path is offscreen and software-rendered. Portal D-Bus activation, basic guest networking, Noctalia/Foot rendering, VT resume and compositor-failure relogin have been exercised. Portal workflows, actual audio playback, shell-driven shutdown/logout, persistence, and 4/8/16 GiB idle-memory targets remain open. Run `./tools/test` for repository regression/smoke checks.
 
-It integrates existing open-source technologies into one desktop.
+## Memory measurement
 
-## Execution Model
+After booting an installed test image, run:
 
-### Linux
+```sh
+./tools/measure-idle-memory --output results/idle-4g-run1.csv
+```
 
-Native Linux applications are preferred.
+It samples at 5, 30, and 60 minutes after boot and writes a metadata sidecar. Repeat cold boots at 4, 8, and 16 GiB under the fixed conditions in [the benchmark guide](docs/MEMORY-BENCHMARK.md). Measurements are evidence, not a claim that the target has been met.
 
-### Android
+## Documentation
 
-Waydroid provides the Android execution environment.
-
-### Windows
-
-Windows applications run in a Windows VM via QEMU/KVM.
-
-1. Windows with KVM
-
-### macOS
-
-Experimental virtualization is planned where technically and legally
-appropriate.
-
-## Hardware
-
-### Limited Mode
-
-- AMD64 CPU
-- 2 GB RAM
-- 32 GB storage
-
-### Full-Feature Minimum
-
-- AVX2-capable CPU for the complete virtualization stack
-- 8 GB RAM
-- 128 GB storage
-- hardware virtualization
-
-### Recommended
-
-- Intel Core 7th generation or newer
-- AMD Ryzen 5th generation or newer
-- 16 GB RAM+
-- 512 GB SSD+
-- NVMe preferred
-
-## Development
-
-The first development target is a QEMU-runnable Live ISO.
-
-### Prerequisites
-
-- Debian Trixie (or compatible) host
-- `live-build` package
-- `qemu-system-x86` and `ovmf` for testing
-- Root access for building (debootstrap/chroot)
-- Network access during build
-
-### Build
-
-    ./build/build-iso
-
-This produces `dist/nextraos-live-amd64.iso`.
-
-### Run in QEMU (UEFI)
-
-    ./tools/run-qemu
-
-### Run in QEMU (BIOS)
-
-    ./tools/run-qemu-bios
-
-## Project Status
-
-| Phase | Status |
-|---|---|
-| Phase 0 — Research | ✅ Complete |
-| Phase 1 — Minimal ISO | ✅ Complete (2026-09-06) |
-| Phase 2 — Installer | ✅ Complete (2026-09-11) |
-| Phase 3 — Native Application Layer | ✅ Complete (2026-09-11) |
-| Phase 4 — Android | ✅ Complete (2026-09-11) |
-| Phase 5 — Windows VM Integration | ✅ Complete (2026-09-11) |
-| Phase 6 — macOS Experimental | ✅ Complete (2026-09-11; experimental) |
-| Phase 7 — VM Lifecycle Management | ⚠️ Partially complete (2026-09-11) |
-| Phase 8 — Production Hardening | ✅ Complete (2026-09-11) |
-| Compatibility resolver | Long-term goal; not implemented |
-
-This summary follows the phase statuses in [docs/ROADMAP.md](docs/ROADMAP.md).
-“Complete” reflects the roadmap's stated scope, not production readiness;
-see the roadmap for verification details and known limitations. The compatibility
-resolver is a long-term goal, not a numbered or completed phase.
-
-Phase 1 delivered a bootable Debian Trixie-based KDE Plasma 6
-Wayland Live ISO with Flatpak and VSCodium included. It was tested in
-QEMU with UEFI; see [docs/ROADMAP.md](docs/ROADMAP.md#L30) for test scope.
-
-See:
-
-- `docs/ARCHITECTURE.md`
-- `docs/ROADMAP.md`
-- `docs/RESEARCH.md`
-- `docs/DEVELOPMENT.md`
+- [Architecture](docs/ARCHITECTURE.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Installer](docs/INSTALLER.md)
+- [Research](docs/RESEARCH.md)
+- [Security](docs/SECURITY.md)
+- [Memory benchmark](docs/MEMORY-BENCHMARK.md)

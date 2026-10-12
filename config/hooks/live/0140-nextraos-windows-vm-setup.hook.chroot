@@ -3,8 +3,9 @@ set -e
 
 echo "==> NextraOS: Setting up Windows VM integration"
 
-# Enable libvirt service
-systemctl enable libvirtd.service
+# Listen on the local libvirt socket and start the daemon on demand.
+# Debian Trixie ships libvirtd.socket in libvirt-daemon.
+systemctl enable libvirtd.socket
 
 # Add user to libvirt group (for live user)
 usermod -aG libvirt user 2>/dev/null || true

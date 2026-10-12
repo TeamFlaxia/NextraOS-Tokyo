@@ -1,0 +1,12 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: niri
+Source: https://github.com/niri-wm/niri
+
+Files: *
+Copyright: Ivan Molodetskikh and Niri contributors
+License: GPL-3+
+ The Niri source declares GPL-3.0-or-later. The complete GPL version 3
+ text is included in the upstream LICENSE file installed with the package.
+ .
+ On Debian systems, the complete text of the GNU General Public License
+ version 3 can also be found in /usr/share/common-licenses/GPL-3.

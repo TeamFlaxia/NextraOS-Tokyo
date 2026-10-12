@@ -3,13 +3,17 @@
 # Processes ecosystem selections from packagechooserq
 
 import os
+import subprocess
+
 import libcalamares
 
 def pretty_name():
     return "NextraOS Post-Install Configuration"
 
+
 def run():
     """Process ecosystem selections and configure the installed system."""
+    _disable_waydroid_boot_activation()
     selections = libcalamares.globalstorage.value("packagechooser_packagechooserq")
     
     if not selections:
@@ -36,6 +40,48 @@ def run():
     _remove_installer()
 
     return None
+
+def _disable_waydroid_boot_activation():
+    """Disable the package-enabled boot link in the installed target."""
+    root = libcalamares.globalstorage.value("rootMountPoint")
+    if not root:
+        raise RuntimeError(
+            "No root mount point; cannot verify Waydroid boot activation"
+        )
+
+    root = os.path.abspath(root)
+    if root == os.path.abspath(os.sep):
+        raise RuntimeError(
+            "Refusing to modify Waydroid activation in the running system"
+        )
+    if not os.path.isdir(root):
+        raise RuntimeError("Installation target root does not exist: {}".format(root))
+
+    unit = os.path.join(root, "usr/lib/systemd/system/waydroid-container.service")
+    if not os.path.exists(unit):
+        return
+
+    try:
+        subprocess.run(
+            ["systemctl", "--root=" + root, "disable", "waydroid-container.service"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except Exception as exc:
+        libcalamares.utils.warning(
+            "Failed to disable Waydroid boot activation: {}".format(exc)
+        )
+        raise
+
+    boot_link = os.path.join(
+        root,
+        "etc/systemd/system/multi-user.target.wants/waydroid-container.service",
+    )
+    if os.path.islink(boot_link):
+        raise RuntimeError("Waydroid container remains enabled for multi-user.target")
+
 
 def _android_system_type(selected):
     """Return GAPPS/VANILLA for Android tokens, or None."""
@@ -77,16 +123,16 @@ def _setup_flatpak():
 def _setup_windows_vm():
     """Configure Windows VM support."""
     try:
-        libcalamares.utils.check_target_env_call(["systemctl", "enable", "libvirtd"])
-        libcalamares.utils.debug("libvirtd enabled for Windows VM")
+        libcalamares.utils.check_target_env_call(["systemctl", "enable", "libvirtd.socket"])
+        libcalamares.utils.debug("libvirtd.socket enabled for on-demand Windows VM access")
     except Exception as e:
         libcalamares.utils.warning("Windows VM setup failed: {}".format(str(e)))
 
 def _setup_macos_vm():
     """Configure macOS VM support (experimental)."""
     try:
-        libcalamares.utils.check_target_env_call(["systemctl", "enable", "libvirtd"])
-        libcalamares.utils.debug("libvirtd enabled for macOS VM (experimental)")
+        libcalamares.utils.check_target_env_call(["systemctl", "enable", "libvirtd.socket"])
+        libcalamares.utils.debug("libvirtd.socket enabled for on-demand macOS VM access (experimental)")
     except Exception as e:
         libcalamares.utils.warning("macOS VM setup failed: {}".format(str(e)))
 

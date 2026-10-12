@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+command -v docker >/dev/null || {
+    echo "Docker is required for the disposable Trixie package test." >&2
+    exit 1
+}
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
+CONFIG_FILE="$PROJECT_DIR/packages/nextraos-niri/noctalia-config.toml"
+[[ -f "$CONFIG_FILE" ]] || {
+    echo "Noctalia config prototype not found: $CONFIG_FILE" >&2
+    exit 1
+}
+
+PIN_VERSION="5.2.1-1+deb13u1"
+PIN_SHA256="63a0aa02fab9c83edaf0c3a063bb3c3079c7ea3673fa37c8ff18d47c5cae02f7"
+PIN_FINGERPRINT="C2A7E07FB3D746BDF2A245CD683B67D7BC99A9B7"
+PACKAGE_URL="https://pkg.noctalia.dev/deb/trixie/noctalia_${PIN_VERSION}_amd64.deb"
+
+exec docker run --rm --platform=linux/amd64 --cpus=2 --memory=2g \
+    -v "$CONFIG_FILE:/noctalia-config.toml:ro" \
+    -e PIN_VERSION="$PIN_VERSION" \
+    -e PIN_SHA256="$PIN_SHA256" \
+    -e PIN_FINGERPRINT="$PIN_FINGERPRINT" \
+    -e PACKAGE_URL="$PACKAGE_URL" \
+    debian:trixie bash -euc '
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get -qq update
+        if ! apt-get -y -qq --no-install-recommends install ca-certificates curl gnupg \
+            >/tmp/noctalia-bootstrap.log 2>&1; then
+            tail -n 80 /tmp/noctalia-bootstrap.log >&2
+            exit 1
+        fi
+
+        KEY=/usr/share/keyrings/nickh-archive-keyring.gpg
+        install -d -m 0755 /usr/share/keyrings
+        curl -fsSL https://pkg.noctalia.dev/deb/nickh-archive-keyring.gpg -o "$KEY"
+        FINGERPRINT=$(
+            gpg --show-keys --with-colons "$KEY" |
+                cut -d: -f1,10 |
+                while IFS=: read -r kind value; do
+                    if [ "$kind" = fpr ]; then
+                        printf "%s" "$value"
+                        break
+                    fi
+                done
+        )
+        test "$FINGERPRINT" = "$PIN_FINGERPRINT"
+
+        curl -fsSL https://pkg.noctalia.dev/deb/noctalia-trixie.sources \
+            -o /etc/apt/sources.list.d/noctalia.sources
+        apt-get -qq update
+
+        curl -fsSL "$PACKAGE_URL" -o /tmp/noctalia.deb
+        printf "%s  %s\n" "$PIN_SHA256" /tmp/noctalia.deb | sha256sum -c -
+        if ! apt-get -y -qq --no-install-recommends install "noctalia=$PIN_VERSION" \
+            >/tmp/noctalia-install.log 2>&1; then
+            tail -n 80 /tmp/noctalia-install.log >&2
+            exit 1
+        fi
+        dpkg-query -W noctalia noctalia-data fonts-noctalia-tabler
+        noctalia --version
+        noctalia --help >/dev/null
+
+        TEST_HOME=/tmp/noctalia-config-test
+        mkdir -p "$TEST_HOME/.config/noctalia" "$TEST_HOME/.local/state"
+        cp /noctalia-config.toml "$TEST_HOME/.config/noctalia/config.toml"
+        export HOME="$TEST_HOME"
+        export XDG_CONFIG_HOME="$TEST_HOME/.config"
+        export XDG_STATE_HOME="$TEST_HOME/.local/state"
+        noctalia config validate
+    '

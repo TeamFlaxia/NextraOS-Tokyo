@@ -8,7 +8,12 @@ ISO_NAME="nextraos-live-amd64.iso"
 DISK_NAME="nextraos-test.qcow2"
 DISK_SIZE="32G"
 
-ISO_FILE="${1:-$DIST_DIR/$ISO_NAME}"
+if [ "$#" -gt 0 ]; then
+    ISO_FILE=$1
+    shift
+else
+    ISO_FILE="$DIST_DIR/$ISO_NAME"
+fi
 
 if [ ! -f "$ISO_FILE" ]; then
     echo "ERROR: ISO not found: $ISO_FILE"
@@ -16,20 +21,22 @@ if [ ! -f "$ISO_FILE" ]; then
     exit 1
 fi
 
-# Create test disk if it doesn't exist
+OVMF_CODE="/usr/share/OVMF/OVMF_CODE_4M.fd"
+OVMF_VARS_TEMPLATE="/usr/share/OVMF/OVMF_VARS_4M.fd"
+if [ ! -f "$OVMF_CODE" ] || [ ! -f "$OVMF_VARS_TEMPLATE" ]; then
+    echo "ERROR: UEFI firmware is required for this install test; install the ovmf package." >&2
+    exit 1
+fi
+
+. "$SCRIPT_DIR/qemu-common.sh"
+nextraos_create_ovmf_vars_copy "$OVMF_VARS_TEMPLATE"
+trap nextraos_remove_ovmf_vars_copy EXIT
+
+# Create test disk if it doesn't exist; preserve it across runs.
 DISK_FILE="$DIST_DIR/$DISK_NAME"
 if [ ! -f "$DISK_FILE" ]; then
     echo "==> Creating test disk: $DISK_FILE ($DISK_SIZE)"
     qemu-img create -f qcow2 "$DISK_FILE" "$DISK_SIZE"
-fi
-
-OVMF_CODE="/usr/share/OVMF/OVMF_CODE_4M.fd"
-OVMF_VARS="/usr/share/OVMF/OVMF_VARS_4M.fd"
-
-if [ ! -f "$OVMF_CODE" ]; then
-    echo "WARNING: OVMF not found at $OVMF_CODE"
-    echo "Falling back to BIOS boot..."
-    exec "$0" --bios "$@"
 fi
 
 echo "==> NextraOS QEMU Install Test (UEFI)"
@@ -37,21 +44,20 @@ echo "    ISO:  $ISO_FILE"
 echo "    Disk: $DISK_FILE"
 echo ""
 
-exec qemu-system-x86_64 \
+nextraos_qemu \
     -name "NextraOS Install" \
     -m 8G \
     -smp 4 \
-    -enable-kvm \
-    -cpu host \
     -drive if=pflash,format=raw,readonly=on,file="$OVMF_CODE" \
-    -drive if=pflash,format=raw,file="$OVMF_VARS" \
+    -drive if=pflash,format=raw,file="$OVMF_VARS_COPY" \
     -drive file="$ISO_FILE",format=raw,media=cdrom \
     -drive file="$DISK_FILE",format=qcow2,if=virtio \
-    -device virtio-vga-gl \
-    -display sdl,gl=on \
     -device qemu-xhci \
     -device usb-tablet \
     -device usb-kbd \
+    -audiodev sdl,id=audio0 \
+    -device intel-hda \
+    -device hda-duplex,audiodev=audio0 \
     -netdev user,id=net0,hostfwd=tcp::2222-:22 \
     -device virtio-net-pci,netdev=net0 \
     "$@"

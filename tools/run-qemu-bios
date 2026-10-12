@@ -6,7 +6,12 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DIST_DIR="$PROJECT_DIR/dist"
 ISO_NAME="nextraos-live-amd64.iso"
 
-ISO_FILE="${1:-$DIST_DIR/$ISO_NAME}"
+if [ "$#" -gt 0 ]; then
+    ISO_FILE=$1
+    shift
+else
+    ISO_FILE="$DIST_DIR/$ISO_NAME"
+fi
 
 if [ ! -f "$ISO_FILE" ]; then
     echo "ERROR: ISO not found: $ISO_FILE"
@@ -14,23 +19,24 @@ if [ ! -f "$ISO_FILE" ]; then
     exit 1
 fi
 
+. "$SCRIPT_DIR/qemu-common.sh"
+
 echo "==> NextraOS QEMU (BIOS)"
 echo "    ISO: $ISO_FILE"
 echo ""
 
-exec qemu-system-x86_64 \
+nextraos_qemu \
     -name "NextraOS" \
     -m 4G \
     -smp 2 \
-    -enable-kvm \
-    -cpu host \
     -boot d \
     -drive file="$ISO_FILE",format=raw,media=cdrom \
-    -device virtio-vga-gl \
-    -display sdl,gl=on \
     -device qemu-xhci \
     -device usb-tablet \
     -device usb-kbd \
+    -audiodev sdl,id=audio0 \
+    -device intel-hda \
+    -device hda-duplex,audiodev=audio0 \
     -netdev user,id=net0,hostfwd=tcp::2222-:22 \
     -device virtio-net-pci,netdev=net0 \
     "$@"

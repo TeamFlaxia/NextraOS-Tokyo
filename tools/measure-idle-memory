@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export LC_ALL=C
+
+usage() {
+    cat <<'USAGE'
+Usage: tools/measure-idle-memory [--output FILE] [--samples MINUTES]
+
+Measure host idle memory at minutes since boot. Defaults to 5,30,60 and
+writes CSV plus a metadata sidecar. Run from the target desktop session.
+This tool reports measurements; it does not enforce or claim the 1 GiB goal.
+
+Options:
+  --output FILE       CSV destination (must not already exist)
+  --samples MINUTES   Comma-separated, increasing minutes since boot (e.g. 5,30,60)
+  -h, --help          Show this help
+USAGE
+}
+
+OUTPUT="idle-memory-$(date -u +%Y%m%dT%H%M%SZ).csv"
+SAMPLES="5,30,60"
+while (($#)); do
+    case "$1" in
+        --output)
+            (($# >= 2)) || { echo "Missing value for --output" >&2; exit 2; }
+            OUTPUT=$2
+            shift 2
+            ;;
+        --samples)
+            (($# >= 2)) || { echo "Missing value for --samples" >&2; exit 2; }
+            SAMPLES=$2
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+[[ -n "$OUTPUT" ]] || { echo "Output path must not be empty" >&2; exit 2; }
+OUTPUT_DIR=$(dirname -- "$OUTPUT")
+OUTPUT_BASE=$(basename -- "$OUTPUT")
+[[ "$OUTPUT_BASE" != "." && "$OUTPUT_BASE" != "/" ]] || {
+    echo "Output path must name a file" >&2
+    exit 2
+}
+META="${OUTPUT%.csv}.metadata.txt"
+[[ "$META" != "$OUTPUT" ]] || META="${OUTPUT}.metadata.txt"
+[[ ! -e "$OUTPUT" && ! -e "$META" ]] || {
+    echo "Refusing to overwrite existing output: $OUTPUT or $META" >&2
+    exit 1
+}
+mkdir -p -- "$OUTPUT_DIR"
+
+IFS=',' read -r -a SAMPLE_LIST <<< "$SAMPLES"
+((${#SAMPLE_LIST[@]} > 0)) || { echo "At least one sample is required" >&2; exit 2; }
+PREVIOUS=-1
+for minute in "${SAMPLE_LIST[@]}"; do
+    [[ "$minute" =~ ^[0-9]+$ ]] || {
+        echo "Invalid sample minute: $minute" >&2
+        exit 2
+    }
+    ((minute > PREVIOUS)) || {
+        echo "Sample minutes must be strictly increasing" >&2
+        exit 2
+    }
+    PREVIOUS=$minute
+done
+
+mem_kib() {
+    local key=$1
+    awk -v key="$key" '$1 == key ":" { print $2; found=1; exit } END { if (!found) exit 1 }' /proc/meminfo
+}
+
+pss_kib_for_pid() {
+    local pid=$1
+    [[ -r "/proc/$pid/smaps_rollup" ]] || return 0
+    awk '$1 == "Pss:" { print $2; found=1; exit } END { if (!found) print 0 }' "/proc/$pid/smaps_rollup" 2>/dev/null || printf '0\n'
+}
+
+sum_pss_kib() {
+    local pid value sum=0
+    for entry in /proc/[0-9]*/smaps_rollup; do
+        [[ -r "$entry" ]] || continue
+        pid=${entry#/proc/}
+        pid=${pid%%/*}
+        value=$(pss_kib_for_pid "$pid")
+        [[ "$value" =~ ^[0-9]+$ ]] && sum=$((sum + value))
+    done
+    printf '%s\n' "$sum"
+}
+
+named_process_pss_kib() {
+    local process_name=$1 pid value sum=0
+    command -v pgrep >/dev/null 2>&1 || { printf '\n'; return; }
+    while IFS= read -r pid; do
+        [[ -n "$pid" ]] || continue
+        value=$(pss_kib_for_pid "$pid")
+        [[ "$value" =~ ^[0-9]+$ ]] && sum=$((sum + value))
+    done < <(pgrep -x "$process_name" 2>/dev/null || true)
+    printf '%s\n' "$sum"
+}
+
+bytes_to_mib() {
+    awk -v value="$1" 'BEGIN { printf "%.1f", value / 1048576 }'
+}
+kib_to_mib() {
+    awk -v value="$1" 'BEGIN { printf "%.1f", value / 1024 }'
+}
+
+zram_bytes() {
+    local field=$1 entry value sum=0
+    for entry in /sys/block/zram*/mm_stat; do
+        [[ -r "$entry" ]] || continue
+        value=$(awk -v field="$field" '{ print $field; exit }' "$entry")
+        [[ "$value" =~ ^[0-9]+$ ]] && sum=$((sum + value))
+    done
+    printf '%s\n' "$sum"
+}
+
+csv_quote() {
+    local value=${1//\"/\"\"}
+    printf '"%s"' "$value"
+}
+
+write_sample() {
+    local target_minute=$1
+    local total_kib available_kib swap_total_kib swap_free_kib
+    local pss_kib niri_pss_kib noctalia_pss_kib zram_orig zram_compressed zram_used
+    local psi_avg10="" uptime_seconds used_kib swap_used_kib
+    total_kib=$(mem_kib MemTotal)
+    available_kib=$(mem_kib MemAvailable)
+    swap_total_kib=$(mem_kib SwapTotal || printf '0')
+    swap_free_kib=$(mem_kib SwapFree || printf '0')
+    used_kib=$((total_kib - available_kib))
+    swap_used_kib=$((swap_total_kib - swap_free_kib))
+    pss_kib=$(sum_pss_kib)
+    niri_pss_kib=$(named_process_pss_kib niri)
+    noctalia_pss_kib=$(named_process_pss_kib noctalia)
+    zram_orig=$(zram_bytes 1)
+    zram_compressed=$(zram_bytes 2)
+    zram_used=$(zram_bytes 3)
+    uptime_seconds=$(awk '{ printf "%d", $1 }' /proc/uptime)
+    if [[ -r /proc/pressure/memory ]]; then
+        psi_avg10=$(awk '$1 == "some" { for (i=2;i<=NF;i++) if ($i ~ /^avg10=/) { sub(/^avg10=/, "", $i); print $i; exit } }' /proc/pressure/memory)
+    fi
+
+    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        "$uptime_seconds" \
+        "$(kib_to_mib "$total_kib")" \
+        "$(kib_to_mib "$available_kib")" \
+        "$(kib_to_mib "$used_kib")" \
+        "$(kib_to_mib "$pss_kib")" \
+        "$(kib_to_mib "$niri_pss_kib")" \
+        "$(kib_to_mib "$noctalia_pss_kib")" \
+        "$(kib_to_mib "$swap_used_kib")" \
+        "$(bytes_to_mib "$zram_orig")" \
+        "$(bytes_to_mib "$zram_compressed")" \
+        "$(bytes_to_mib "$zram_used")" \
+        "$(csv_quote "$psi_avg10")" \
+        "$(csv_quote "$target_minute")" >> "$OUTPUT"
+}
+
+{
+    printf '%s\n' 'timestamp_utc,uptime_seconds,mem_total_mib,mem_available_mib,mem_used_mib,system_pss_mib,niri_pss_mib,noctalia_pss_mib,swap_used_mib,zram_uncompressed_mib,zram_compressed_mib,zram_mem_used_mib,memory_psi_some_avg10,target_minute'
+} > "$OUTPUT"
+
+{
+    printf 'NextraOS idle memory measurement\n'
+    printf 'Started UTC: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf 'Kernel: %s\n' "$(uname -srmo)"
+    printf 'Session type: %s\n' "${XDG_SESSION_TYPE:-unknown}"
+    printf 'Desktop: %s\n' "${XDG_CURRENT_DESKTOP:-unknown}"
+    printf 'Session desktop: %s\n' "${XDG_SESSION_DESKTOP:-unknown}"
+    printf 'Target samples since boot (minutes): %s\n' "$SAMPLES"
+    printf 'Display conditions and cold-boot number: record manually; target is one 1920x1080 display.\n'
+    printf 'Primary metric: MemTotal - MemAvailable. This is not the sum of process PSS.\n'
+    printf 'PSS is an aggregate of readable /proc/*/smaps_rollup files and may be incomplete for unprivileged users.\n'
+    printf 'zram mem_used_mib is mm_stat field 3 (mem_used_total), the actual zram RAM footprint.\n'
+    if command -v systemd-analyze >/dev/null 2>&1; then
+        printf '\nBoot timing from systemd-analyze time:\n'
+        systemd-analyze time --no-pager 2>&1 || true
+    else
+        printf '\nBoot timing: systemd-analyze is unavailable.\n'
+    fi
+} > "$META"
+
+printf 'Writing samples to %s (metadata: %s)\n' "$OUTPUT" "$META"
+for minute in "${SAMPLE_LIST[@]}"; do
+    target_seconds=$((minute * 60))
+    current_seconds=$(awk '{ printf "%d", $1 }' /proc/uptime)
+    if ((current_seconds < target_seconds)); then
+        delay=$((target_seconds - current_seconds))
+        printf 'Waiting %d seconds for the %d-minute sample...\n' "$delay" "$minute"
+        sleep "$delay"
+    fi
+    write_sample "$minute"
+    printf 'Captured %d-minute sample at uptime %s seconds\n' \
+        "$minute" "$(awk '{ printf "%d", $1 }' /proc/uptime)"
+done
+printf 'Done. Compare mem_used_mib with the 1024 MiB target; retain this raw CSV.\n'
