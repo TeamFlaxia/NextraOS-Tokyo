@@ -1,0 +1,24 @@
+#!/usr/bin/env python3
+"""Apply the host-tested Flow patch to its exact Noctalia source revision."""
+import argparse
+import json
+from pathlib import Path
+import subprocess
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('source', type=Path, help='Noctalia v5.2.1 checkout')
+args = parser.parse_args()
+project = Path(__file__).resolve().parent.parent
+profile = project / 'desktop/flow'
+pin = json.loads((profile / 'sources.json').read_text())['noctalia']['commit']
+head = subprocess.check_output(['git', '-C', str(args.source), 'rev-parse', 'HEAD'], text=True).strip()
+if head != pin:
+    parser.error(f'Expected source commit {pin}, got {head}')
+patch = str(profile / 'noctalia/flow-v5.2.1.patch')
+command = ['git', '-C', str(args.source), 'apply']
+if subprocess.run(command + ['--reverse', '--check', patch], capture_output=True).returncode == 0:
+    print('Flow patch is already applied.')
+else:
+    subprocess.run(command + ['--check', patch], check=True)
+    subprocess.run(command + [patch], check=True)
+    print('Flow patch applied; build Noctalia before enabling the profile.')

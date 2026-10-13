@@ -943,3 +943,32 @@ Research should include:
 - maintenance status
 
 Never freeze assumptions indefinitely.
+
+## Flow host desktop import (2026-10-13)
+
+- Niri v26.04: the repository's pinned compositor, used on the physical host.
+- Native Noctalia v5.2.1, MIT, source commit
+  `6ef43e2bf2f3d5b4205ec72a72e34a2ab76ce3b4`:
+  https://github.com/noctalia-dev/noctalia. Its bundled assets/fonts and
+  upstream Meson dependencies are required; this import ships a source patch
+  and MIT notice rather than a binary. The patch is version-specific and
+  must be re-evaluated on upgrades.
+- The upstream bar filtered out `input` controls and did not route keyboard
+  focus to them. The host patch adds compact input/IME routing, uses Niri IPC
+  metadata for focused-window titles, and adjusts compact switcher layout and
+  Japanese strings. Exported at `desktop/flow/noctalia/flow-v5.2.1.patch`.
+- WezTerm `20240203-110809-5046fc22`: Wayland terminal with integrated Windows
+  style buttons. The official release is a separate dependency, not bundled:
+  https://github.com/wezterm/wezterm.
+- Missing Wayland/desktop variables in systemd/DBus caused portal GTK display
+  failures and repeated 25-second activation timeouts. Safe-variable import
+  and an explicit GTK backend restored warm launcher operation (one Files
+  launch measured approximately 0.44s) and Discord's Wayland startup. The
+  profile does not export the host's environment or authentication material.
+- Bar search, app launch, window titles and switcher were exercised on the
+  host. Screen sharing, voice, PAM/Secret Service unlock, ISO acceptance and
+  idle-memory targets are not inferred from these observations.
+- Privileges: dotfile installation is unprivileged, backed up and opt-in;
+  session synchronization affects only the current user's graphical services.
+  There are no runtime downloads, privileged containers, VM operations,
+  filesystem/device sharing rules or automatic package installs in the import.

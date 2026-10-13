@@ -1,0 +1,2 @@
+# Blank unified-diff context lines deliberately contain a prefix space.
+*.patch whitespace=-blank-at-eol

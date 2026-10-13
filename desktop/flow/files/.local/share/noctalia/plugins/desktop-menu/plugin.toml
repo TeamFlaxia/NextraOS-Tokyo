@@ -1,0 +1,21 @@
+id = "local/desktop-menu"
+name = "Desktop Menu"
+version = "1.0.0"
+plugin_api = 24
+author = "local"
+license = "MIT"
+description = "Compact desktop menu for the desktop button."
+icon = "layout-grid"
+
+[[panel]]
+id = "menu"
+entry = "menu.luau"
+width = 268
+height = 302
+placement = "floating"
+position = "top_left"
+
+
+[[widget]]
+id = "search"
+entry = "search.luau"

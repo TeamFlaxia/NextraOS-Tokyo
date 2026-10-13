@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export PATH="$HOME/.local/bin:$PATH"
+export XDG_CURRENT_DESKTOP=niri
+export XDG_SESSION_DESKTOP=niri
+export XDG_SESSION_TYPE=wayland
+export TERMINAL=wezterm
+"$HOME/.local/bin/desktop-session-sync"
+exec "$HOME/.local/bin/noctalia" "$@"

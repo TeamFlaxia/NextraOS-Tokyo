@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+flow_prefix=${NOCTALIA_FLOW_PREFIX:-"$HOME/.local/opt/noctalia-flow"}
+export NOCTALIA_ASSETS_DIR="$flow_prefix/share/noctalia/assets"
+exec "$flow_prefix/bin/noctalia" "$@"

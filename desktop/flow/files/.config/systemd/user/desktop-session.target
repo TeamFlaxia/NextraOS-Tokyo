@@ -1,0 +1,4 @@
+[Unit]
+Description=Graphical services for the current niri desktop
+Wants=graphical-session.target
+After=graphical-session.target

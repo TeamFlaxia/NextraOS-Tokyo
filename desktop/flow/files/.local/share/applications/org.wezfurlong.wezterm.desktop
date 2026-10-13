@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=WezTerm
+Name[ja]=WezTerm ターミナル
+Exec="@HOME@/.local/bin/wezterm" start
+TryExec=@HOME@/.local/bin/wezterm
+Icon=org.wezfurlong.wezterm
+StartupWMClass=org.wezfurlong.wezterm
+Terminal=false
+Categories=System;TerminalEmulator;

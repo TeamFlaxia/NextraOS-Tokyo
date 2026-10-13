@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+"""Install only the Flow desktop dotfiles; back up every replaced file."""
+import argparse
+from datetime import datetime, timezone
+import json
+from pathlib import Path
+import shutil
+import tomllib
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--home', type=Path, default=Path.home(), help='destination user home')
+parser.add_argument('--dry-run', action='store_true', help='show paths without changing files')
+args = parser.parse_args()
+target_home = args.home.expanduser().absolute()
+# Home is embedded inside quoted KDL/TOML and desktop-entry values.
+if any(char in str(target_home) for char in ('"', '\\', '\n', '\r')):
+    parser.error('Home paths containing quotes, backslashes or newlines are unsupported')
+source = Path(__file__).resolve().parent.parent / 'desktop/flow/files'
+entries = sorted(path for path in source.rglob('*') if path.is_file())
+for path in entries:
+    relative = path.relative_to(source)
+    destination = target_home / relative
+    # Never follow a pre-existing directory symlink outside this home.
+    if not destination.parent.resolve().is_relative_to(target_home.resolve()):
+        parser.error(f'Destination escapes home: {relative}')
+    if destination.is_dir():
+        parser.error(f'Destination is a directory: {relative}')
+    if path.suffix == '.toml':
+        tomllib.loads(path.read_text().replace('@HOME@', str(target_home)))
+    elif path.suffix == '.json':
+        json.loads(path.read_text())
+if args.dry_run:
+    for path in entries:
+        print(path.relative_to(source))
+    raise SystemExit(0)
+stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
+backup = target_home / '.local/state/nextraos-flow/backups' / stamp
+if not backup.parent.resolve().is_relative_to(target_home.resolve()):
+    parser.error('Backup directory escapes the selected home')
+# Back up all destinations before replacing any file.
+for path in entries:
+    relative = path.relative_to(source)
+    destination = target_home / relative
+    if destination.exists() or destination.is_symlink():
+        saved = backup / relative
+        saved.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(destination, saved, follow_symlinks=False)
+for path in entries:
+    destination = target_home / path.relative_to(source)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.is_symlink():
+        destination.unlink()
+    if path.suffix == '.png':
+        shutil.copy2(path, destination)
+    else:
+        destination.write_text(path.read_text().replace('@HOME@', str(target_home)))
+        destination.chmod(path.stat().st_mode & 0o777)
+print(f'Installed {len(entries)} desktop files. Backup directory: {backup}')
+print('Packages, runtimes and the running desktop were not changed. Log in with niri-session after meeting the documented prerequisites.')

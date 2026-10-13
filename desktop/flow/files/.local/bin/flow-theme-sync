@@ -1,0 +1,33 @@
+#!/usr/bin/env python3
+import os
+from pathlib import Path
+import shutil
+import subprocess
+
+home = Path.home()
+mode = os.environ.get('NOCTALIA_THEME_MODE')
+if mode not in ('light', 'dark'):
+    result = subprocess.run(['noctalia', 'msg', 'theme-mode-get'], capture_output=True, text=True)
+    mode = 'dark' if 'dark' in result.stdout.lower() else 'light'
+theme = 'Adwaita-dark' if mode == 'dark' else 'Adwaita'
+for version in ('3.0', '4.0'):
+    settings = home / f'.config/gtk-{version}/settings.ini'
+    settings.parent.mkdir(parents=True, exist_ok=True)
+    settings.write_text(f'''[Settings]
+gtk-theme-name={theme}
+gtk-icon-theme-name=breeze
+gtk-font-name=Inter 10
+gtk-application-prefer-dark-theme={'true' if mode == 'dark' else 'false'}
+gtk-decoration-layout=:minimize,maximize,close
+''')
+if shutil.which('gsettings'):
+    for key, value in [('gtk-theme', theme), ('icon-theme', 'breeze'),
+                       ('color-scheme', 'prefer-dark' if mode == 'dark' else 'prefer-light')]:
+        subprocess.run(['gsettings', 'set', 'org.gnome.desktop.interface', key, value], check=True)
+    subprocess.run(['gsettings', 'set', 'org.gnome.desktop.wm.preferences',
+                    'button-layout', ':minimize,maximize,close'], check=True)
+if shutil.which('kwriteconfig6'):
+    for group, key, value in [('General', 'ColorScheme', 'BreezeDark' if mode == 'dark' else 'BreezeLight'),
+                              ('Icons', 'Theme', 'breeze')]:
+        subprocess.run(['kwriteconfig6', '--file', 'kdeglobals', '--group', group,
+                        '--key', key, value], check=True)

@@ -21,6 +21,15 @@ The repository's default live-build path remains an older KDE Plasma prototype; 
 
 See the [roadmap](docs/ROADMAP.md), [Niri desktop ADR](docs/adr/0004-niri-noctalia-desktop.md), [test-profile ADR](docs/adr/0005-reversible-niri-test-profile.md), [research](docs/RESEARCH.md), and [development guide](docs/DEVELOPMENT.md).
 
+## Host desktop profile
+
+The opt-in [Flow profile](desktop/flow/README.md) captures the tested physical
+host's bottom taskbar/search UI, window controls, WezTerm, Japanese input and
+portal-session fixes. It includes the source patch required by Noctalia
+v5.2.1, a reversible dotfile installer and source pins. VM configuration and
+personal application data are excluded. This profile does not replace the
+existing ISO prototype or extend its validation claims.
+
 ## Build and test
 
 The standard `./build/build-iso` still builds the KDE prototype. The isolated test profile requires the pinned Niri `.deb` first and does not modify the default package list:

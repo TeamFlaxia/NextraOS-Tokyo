@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ -x "$HOME/.local/opt/wezterm/usr/bin/wezterm" ]]; then
+    exec "$HOME/.local/opt/wezterm/usr/bin/wezterm" "$@"
+elif [[ -x /usr/bin/wezterm ]]; then
+    exec /usr/bin/wezterm "$@"
+else
+    printf '%s\n' 'Install WezTerm before using the Flow profile.' >&2
+    exit 127
+fi

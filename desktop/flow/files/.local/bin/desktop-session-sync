@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [ -z "${WAYLAND_DISPLAY:-}" ]; then
+    printf '%s\n' 'A running Wayland session is required.' >&2
+    exit 1
+fi
+export XDG_CURRENT_DESKTOP=niri
+export XDG_SESSION_DESKTOP=niri
+export XDG_SESSION_TYPE=wayland
+session_vars=(WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE XDG_RUNTIME_DIR)
+for session_var in DISPLAY NIRI_SOCKET; do
+    if [[ -v "$session_var" ]]; then session_vars+=("$session_var"); fi
+done
+previous_env=$(systemctl --user show-environment)
+restart_portals=false
+if ! printf '%s\n' "$previous_env" | grep -Fqx "WAYLAND_DISPLAY=$WAYLAND_DISPLAY"; then restart_portals=true; fi
+if ! printf '%s\n' "$previous_env" | grep -Fqx "XDG_CURRENT_DESKTOP=niri"; then restart_portals=true; fi
+dbus-update-activation-environment --systemd "${session_vars[@]}"
+systemctl --user start desktop-session.target
+if [ "$restart_portals" = true ] || ! systemctl --user is-active --quiet xdg-desktop-portal-gtk.service || ! systemctl --user is-active --quiet xdg-desktop-portal.service; then
+    systemctl --user restart xdg-desktop-portal-gtk.service xdg-desktop-portal.service
+fi

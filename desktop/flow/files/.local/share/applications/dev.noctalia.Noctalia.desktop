@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=システム設定
+Name[ja]=システム設定
+Comment=Desktop appearance and controls
+Exec="@HOME@/.local/bin/noctalia" msg settings-open
+Icon=preferences-system
+Terminal=false
+Categories=Settings;DesktopSettings;
+StartupNotify=false

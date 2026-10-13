@@ -1,0 +1,848 @@
+diff --git a/assets/translations/ja.json b/assets/translations/ja.json
+index 9d6b960..dfc2758 100644
+--- a/assets/translations/ja.json
++++ b/assets/translations/ja.json
+@@ -998,7 +998,8 @@
+   },
+   "settings": {
+     "badges": {
+-      "monitor": "画面"
++      "monitor": "画面",
++      "advanced": "詳細"
+     },
+     "calendar-accounts": {
+       "add-title": "カレンダーアカウントを追加",
+@@ -1044,7 +1045,10 @@
+     "controls": {
+       "path-browse": {
+         "file-title": "ファイルを選択"
+-      }
++      },
++      "keybind": {},
++      "list": {},
++      "select": {}
+     },
+     "dialogs": {
+       "color-picker": {
+@@ -1112,9 +1116,14 @@
+               "grouping": "グループ化",
+               "windows": "ウィンドウ",
+               "workspace-labels": "ワークスペースラベル"
+-            }
++            },
++            "workspaces": {}
+           }
+-        }
++        },
++        "detail": {},
++        "inspector": {},
++        "lanes": {},
++        "picker": {}
+       }
+     },
+     "errors": {
+@@ -1202,7 +1211,14 @@
+         "user": "ユーザー",
+         "wallpaper": "壁紙",
+         "weather": "天気",
+-        "window-switcher": "ウィンドウ・スイッチャー"
++        "window-switcher": "ウィンドウ・スイッチャー",
++        "borders": "枠線",
++        "effects": "視覚効果",
++        "interface": "インターフェース",
++        "keybinds": "ショートカット",
++        "motion": "アニメーション",
++        "screenshot": "スクリーンショット",
++        "security": "セキュリティ"
+       },
+       "sections": {
+         "accessibility": "アクセシビリティ",
+@@ -1217,7 +1233,16 @@
+         "plugins": "プラグイン",
+         "power": "電源",
+         "system": "システム",
+-        "wallpaper": "壁紙"
++        "wallpaper": "壁紙",
++        "calendar": "カレンダー",
++        "desktop": "デスクトップ",
++        "keybinds": "ショートカット",
++        "panels": "パネル",
++        "screenshot": "スクリーンショット",
++        "security": "セキュリティ",
++        "services": "システム機能",
++        "shell": "基本設定",
++        "templates": "アプリの外観"
+       }
+     },
+     "notifications": {
+@@ -1332,7 +1357,9 @@
+         "window-switcher-style": {
+           "carousel": "カルーセル",
+           "compact": "コンパクト"
+-        }
++        },
++        "panel-transparency": {},
++        "password-style": {}
+       },
+       "theme": {
+         "mode": {
+@@ -1380,7 +1407,11 @@
+           "imperial": "華氏",
+           "metric": "摂氏"
+         }
+-      }
++      },
++      "accordion-direction": {},
++      "layer": {},
++      "notification-urgency": {},
++      "orientation": {}
+     },
+     "plugins": {
+       "browse-store": "プラグインを探す",
+@@ -1511,7 +1542,8 @@
+           "label": "角の丸み"
+         },
+         "custom-palette": {
+-          "description": "~/.config/noctalia/palettes/から配色を選択"
++          "description": "~/.config/noctalia/palettes/から配色を選択",
++          "label": "独自の配色"
+         },
+         "export-wallpaper-palette": {
+           "button": "独自の配色として保存",
+@@ -1525,7 +1557,8 @@
+           "description": "シェル全体のテキスト入力欄やその他の入力項目に枠線を表示"
+         },
+         "palette-source": {
+-          "description": "配色の取得元"
++          "description": "配色の取得元",
++          "label": "配色の取得元"
+         },
+         "popup-borders": {
+           "description": "ポップアップとドロップダウンに枠線を表示"
+@@ -1534,7 +1567,8 @@
+           "description": "ポップアップとドロップダウンの背後に影を表示"
+         },
+         "pure-black-dark": {
+-          "description": "暗いサーフェスを完全な黒に固定し、OLEDパネルでのバンディングを防止（ダークモードのみ）"
++          "description": "暗いサーフェスを完全な黒に固定し、OLEDパネルでのバンディングを防止（ダークモードのみ）",
++          "label": "漆黒の背景"
+         },
+         "shell-theme-mode": {
+           "description": "Noctalia独自のライトまたはダークモードに固定します。「追従」ではテーマモードと同期します",
+@@ -1551,13 +1585,19 @@
+         "wallpaper-generation-scheme": {
+           "description": "壁紙の色を配色に変換する方法を選択",
+           "label": "壁紙からの配色生成方式"
+-        }
++        },
++        "animation-speed": {},
++        "font-family": {},
++        "global-shadow-alpha": {},
++        "language": {}
+       },
+       "backdrop": {
+         "tint-intensity": {
+           "description": "背景の着色の強さ",
+           "label": "着色の強さ"
+-        }
++        },
++        "blur-intensity": {},
++        "enabled": {}
+       },
+       "bar": {
+         "auto-hide": {
+@@ -1715,7 +1755,9 @@
+         "widget-spacing": {
+           "description": "バーウィジェット間の間隔",
+           "label": "ウィジェット間隔"
+-        }
++        },
++        "capsule-border-width": {},
++        "compositor-blur": {}
+       },
+       "desktop": {
+         "hot-corners-bottom-left": {
+@@ -1996,7 +2038,14 @@
+         "tab-next": {
+           "description": "フォーカスを次の項目へ移動",
+           "label": "次へフォーカス"
+-        }
++        },
++        "copy": {},
++        "down": {},
++        "right": {},
++        "save": {},
++        "tab-previous": {},
++        "up": {},
++        "validate": {}
+       },
+       "lockscreen": {
+         "allow-empty-password": {
+@@ -2133,11 +2182,16 @@
+         "toast-opacity": {
+           "description": "ポップアップ通知の背景不透明度",
+           "label": "背景不透明度"
+-        }
++        },
++        "border-color": {},
++        "border-width": {},
++        "follow-focused-output": {},
++        "width": {}
+       },
+       "panels": {
+         "borders": {
+-          "description": "浮動パネルに枠線を表示"
++          "description": "浮動パネルに枠線を表示",
++          "label": "枠線"
+         },
+         "control-center-sidebar": {
+           "description": "側面パネルの表示方法を選択",
+@@ -2353,7 +2407,8 @@
+         },
+         "transparency-mode": {
+           "description": "浮動パネルの不透明度やカードの半透明を含む、パネルのガラス風表示"
+-        }
++        },
++        "floating-layer": {}
+       },
+       "power": {
+         "session-actions": {
+@@ -2572,7 +2627,10 @@
+         "weather-unit": {
+           "description": "気象表示の単位",
+           "label": "単位"
+-        }
++        },
++        "calendar-reminder-lead": {},
++        "calendar-reminders": {},
++        "minimum-brightness": {}
+       },
+       "shared": {
+         "corner-bottom-left": {
+@@ -2589,7 +2647,21 @@
+         },
+         "reserve-space": {
+           "label": "予約領域"
+-        }
++        },
++        "auto-hide": {},
++        "background-opacity": {},
++        "contact-shadow": {},
++        "corner-bottom-right": {},
++        "corner-top-right": {},
++        "cross-axis-padding": {},
++        "edge-margin": {},
++        "enabled": {},
++        "main-axis-padding": {},
++        "opposite-edge-margin": {},
++        "position": {},
++        "shadow": {},
++        "shadow-alpha": {},
++        "shadow-direction": {}
+       },
+       "shell": {
+         "clipboard-auto-paste": {
+@@ -2863,7 +2935,20 @@
+         "window-switcher-style": {
+           "description": "立体的なカルーセル表示または枠付きのコンパクト表示を選択",
+           "label": "スイッチャーの表示形式"
+-        }
++        },
++        "avatar-path": {},
++        "keyboard-layout-custom-labels": {},
++        "osd-border-color": {},
++        "osd-border-width": {},
++        "osd-follow-focused-output": {},
++        "osd-hide-delay": {},
++        "password-style": {},
++        "readline-shortcuts": {},
++        "screenshot-output": {},
++        "screenshot-pipe-to-command": {},
++        "screenshot-skip-annotate-on-copy-save": {},
++        "settings-expand-all-groups": {},
++        "settings-window-translucent": {}
+       },
+       "system": {
+         "battery-device-warning-threshold": {
+@@ -2971,6 +3056,9 @@
+           "description": "壁紙切替時に使用できる効果（切替ごとに1つをランダム選択）",
+           "label": "切替効果"
+         }
++      },
++      "accessibility": {
++        "high-contrast": {}
+       }
+     },
+     "session-actions": {
+@@ -3287,7 +3375,47 @@
+           },
+           "workspace-switch": {
+             "description": "対象画面で隣のワークスペースへ切替（両端で停止）"
+-          }
++          },
++          "annotate": {},
++          "brightness-list-backlight-devices": {},
++          "caffeine-disable": {},
++          "caffeine-enable": {},
++          "caffeine-toggle": {},
++          "effects-profile-set": {},
++          "keyboard-backlight-set": {},
++          "keyboard-backlight-toggle": {},
++          "keyboard-backlight-up": {},
++          "log-level-set": {},
++          "log-level-status": {},
++          "mic-mute": {},
++          "mic-volume-set": {},
++          "mic-volume-up": {},
++          "nightlight-disable": {},
++          "nightlight-enable": {},
++          "nightlight-force-toggle": {},
++          "nightlight-toggle": {},
++          "notification-clear-history": {},
++          "notification-invoke-latest": {},
++          "notification-show": {},
++          "panel-close": {},
++          "plugin": {},
++          "screenshot-region": {},
++          "settings-close": {},
++          "settings-open": {},
++          "settings-open-plugin": {},
++          "settings-toggle": {},
++          "status": {},
++          "volume-set": {},
++          "volume-up": {},
++          "wifi-disable": {},
++          "wifi-enable": {},
++          "wifi-status": {},
++          "wifi-toggle": {},
++          "workspace-alert-add": {},
++          "workspace-alert-add-window": {},
++          "workspace-alert-clear": {},
++          "workspace-alert-clear-all": {},
++          "workspace-alert-status": {}
+         },
+         "run-command": "コマンドを実行…"
+       },
+@@ -3445,7 +3573,8 @@
+           "workspaces-description": "バー方向における非アクティブなワークスペースピルの最小長。ピルの太さに対する倍率で指定し、ラベルは必要に応じてこれを超えて拡張されます"
+         },
+         "interface": {
+-          "description": "監視するネットワークインターフェースです。空欄にすると、すべてのインターフェースの合計を使用します。"
++          "description": "監視するネットワークインターフェースです。空欄にすると、すべてのインターフェースの合計を使用します。",
++          "label": "インターフェース"
+         },
+         "item-spacing": {
+           "description": "ワークスペースのグループ化が無効な場合のタスクバー項目間の間隔"
+@@ -3546,7 +3675,85 @@
+         "warning-color": {
+           "description": "電池残量が警告しきい値以下のときに使用する色",
+           "label": "警告色"
+-        }
++        },
++        "actions": {},
++        "active-indicator-color": {},
++        "active-opacity": {},
++        "album-art-only": {},
++        "anchor": {},
++        "artist-first": {},
++        "bands": {},
++        "cam-filter-regex": {},
++        "capsule": {},
++        "capsule-border-width": {},
++        "capsule-opacity": {},
++        "capsule-padding": {},
++        "change-color-on-hover": {},
++        "custom-image": {},
++        "custom-label": {},
++        "display-mode": {},
++        "effects-profile-glyphs": {},
++        "enable-scroll": {},
++        "font-scale": {},
++        "glyph": {},
++        "glyph-position": {},
++        "group-single-icon-per-app": {},
++        "height": {},
++        "hide-album-art": {},
++        "hide-artist": {},
++        "hide-inactive": {},
++        "hide-when-empty": {},
++        "hide-when-full": {},
++        "hide-when-off": {},
++        "hide-when-single-layout": {},
++        "hot-reload": {},
++        "icon-size": {},
++        "icon-spacing": {},
++        "inactive-opacity": {},
++        "interactive": {},
++        "label": {},
++        "label-min-width": {},
++        "label-show-units": {},
++        "label-source": {},
++        "labels-only-when-occupied": {},
++        "length": {},
++        "max-label-chars": {},
++        "max-length": {},
++        "mic-filter-regex": {},
++        "min-length": {},
++        "mirrored": {},
++        "only-active-workspace": {},
++        "path": {},
++        "pill-scale": {},
++        "pinned-opacity": {},
++        "rotate-album-art": {},
++        "script": {},
++        "scroll-repeat": {},
++        "show-caps-lock": {},
++        "show-empty-label": {},
++        "show-glyph": {},
++        "show-icons": {},
++        "show-label": {},
++        "show-labels": {},
++        "show-num-lock": {},
++        "show-progress": {},
++        "show-scroll-lock": {},
++        "show-temperature": {},
++        "show-tooltip": {},
++        "show-value": {},
++        "show-when-unavailable": {},
++        "style": {},
++        "title-scroll": {},
++        "tooltip": {},
++        "tooltip-format": {},
++        "type": {},
++        "urgent-color": {},
++        "visualization": {},
++        "width": {},
++        "window-title-max-width": {},
++        "workspace-group-capsule": {},
++        "workspace-group-content": {},
++        "workspace-label-placement": {}
+       },
+       "types": {
+         "audio-visualizer": "音声ビジュアライザー",
+@@ -3564,8 +3771,11 @@
+         "theme-mode": "テーマモード",
+         "tray": "トレイ",
+         "wallpaper": "壁紙",
+-        "weather": "天気"
+-      }
++        "weather": "天気",
++        "screenshot": "スクリーンショット",
++        "settings": "設定"
++      },
++      "map-placeholders": {}
+     },
+     "window": {
+       "offline-mode-notice": {
+@@ -3574,7 +3784,13 @@
+         "location": "天気や場所の検索は機能しません。",
+         "plugin-store": "オンラインのプラグインカタログとダウンロード要求は利用できません。",
+         "plugins": "プラグインのHTTP通信は利用できません。Git配布元は引き続き更新できます。"
+-      }
++      },
++      "filter-overridden": "変更した設定",
++      "title": "設定"
++    },
++    "actions": {},
++    "templates": {
++      "store": {}
+     }
+   },
+   "setup-wizard": {
+@@ -3657,7 +3873,18 @@
+     "dialogs": {
+       "color-picker": {
+         "title": "色"
+-      }
++      },
++      "file": {
++        "actions": {},
++        "entry": {},
++        "sort": {},
++        "title": {}
++      },
++      "glyph-picker": {}
++    },
++    "controls": {
++      "search-picker": {},
++      "select": {}
+     }
+   },
+   "wallpaper": {
+diff --git a/src/app/application_ui.cpp b/src/app/application_ui.cpp
+index 7dd005b..0230ad7 100644
+--- a/src/app/application_ui.cpp
++++ b/src/app/application_ui.cpp
+@@ -517,6 +517,7 @@ void Application::initInputDispatch() {
+     if (m_windowSwitcher.onKeyboardEvent(event)) {
+       return;
+     }
++    if (m_bar.onKeyboardEvent(event)) { return; }
+     m_panelManager.onKeyboardEvent(event);
+   });
+ }
+diff --git a/src/compositors/compositor_platform.cpp b/src/compositors/compositor_platform.cpp
+index fe63e3a..f42ed93 100644
+--- a/src/compositors/compositor_platform.cpp
++++ b/src/compositors/compositor_platform.cpp
+@@ -803,6 +803,20 @@ void CompositorPlatform::probeFocusedOutput(
+ }
+ 
+ std::optional<ActiveToplevel> CompositorPlatform::activeToplevel() const {
++  // Niri exposes focus through its IPC stream; ext-foreign-toplevel has no
++  // activated state. Use cached IPC metadata, including after shell startup.
++  if (compositors::detect() == compositors::CompositorKind::Niri && m_workspaceMetadataBackend != nullptr) {
++    const auto focused = m_workspaceMetadataBackend->focusedWindowId();
++    if (focused.has_value()) {
++      for (const auto& window : m_workspaceMetadataBackend->workspaceWindows()) {
++        if (window.windowId == *focused) {
++          return ActiveToplevel{ .title = window.title, .appId = window.appId,
++              .identifier = window.windowId, .handle = nullptr };
++        }
++      }
++    }
++    return std::nullopt;
++  }
+   if (compositors::isKde() && m_kwinActiveWindow != nullptr && m_kwinActiveWindow->isAvailable()) {
+     return m_kwinActiveWindow->current();
+   }
+diff --git a/src/shell/bar/bar.cpp b/src/shell/bar/bar.cpp
+index ff71f3d..85046c6 100644
+--- a/src/shell/bar/bar.cpp
++++ b/src/shell/bar/bar.cpp
+@@ -38,6 +38,7 @@
+ #include <unordered_set>
+ #include <wayland-client-core.h>
+ #include <wayland-client-protocol.h>
++#include <xkbcommon/xkbcommon-keysyms.h>
+ 
+ namespace {
+ 
+@@ -2403,6 +2404,7 @@ void Bar::createInstance(const WaylandOutput& output, std::size_t barIndex, cons
+       .marginRight = surfaceSpec.marginRight,
+       .marginBottom = surfaceSpec.marginBottom,
+       .marginLeft = surfaceSpec.marginLeft,
++      .keyboard = LayerShellKeyboard::OnDemand,
+       .defaultHeight = surfaceSpec.surfaceHeight,
+       .prewarmBlur = barConfig.compositorBlur,
+   };
+@@ -3332,6 +3334,7 @@ void Bar::buildScene(BarInstance& instance, std::uint32_t width, std::uint32_t h
+ 
+     // Wire up InputDispatcher for this instance
+     instance.inputDispatcher.setSceneRoot(instance.sceneRoot.get());
++    instance.inputDispatcher.setTextInputContext(instance.surface->wlSurface(), m_platform->wayland().textInputService());
+     instance.inputDispatcher.setCursorShapeCallback([this](std::uint32_t serial, std::uint32_t shape) {
+       m_platform->setCursorShape(serial, shape);
+     });
+@@ -3589,6 +3592,7 @@ bool Bar::onPointerEvent(const PointerEvent& event) {
+     entered->lastPointerSx = static_cast<float>(event.sx);
+     entered->lastPointerSy = static_cast<float>(event.sy);
+     entered->pointerInside = true;
++    entered->surface->setKeyboardInteractivity(LayerShellKeyboard::OnDemand);
+     entered->inputDispatcher.pointerEnter(static_cast<float>(event.sx), static_cast<float>(event.sy), event.serial);
+     // pointerEnter can re-enter the Wayland event loop (tooltip popup work),
+     // which may clear or change m_hoveredInstance before we dereference it.
+@@ -4162,3 +4166,22 @@ void Bar::registerIpc(IpcService& ipc) {
+     return setBarLayerIpc(args);
+   });
+ }
++
++// Compact bar inputs receive events only while this bar owns keyboard focus.
++bool Bar::onKeyboardEvent(const KeyboardEvent& event) {
++  if (m_platform == nullptr) return false;
++  for (auto& instance : m_instances) {
++    if (instance->surface == nullptr || instance->surface->wlSurface() != m_platform->lastKeyboardSurface()) continue;
++    if (instance->inputDispatcher.focusedArea() == nullptr) return false;
++    if (event.pressed && event.sym == XKB_KEY_Escape) {
++      instance->inputDispatcher.setFocus(nullptr);
++      instance->surface->setKeyboardInteractivity(LayerShellKeyboard::None);
++      instance->surface->requestRedraw();
++      return true;
++    }
++    instance->inputDispatcher.keyEvent(event.sym, event.utf32, event.modifiers, event.pressed, event.preedit);
++    instance->surface->requestRedraw();
++    return true;
++  }
++  return false;
++}
+diff --git a/src/shell/bar/bar.h b/src/shell/bar/bar.h
+index 1075ae3..777557f 100644
+--- a/src/shell/bar/bar.h
++++ b/src/shell/bar/bar.h
+@@ -52,6 +52,7 @@ namespace scripting {
+   class ScriptApiContext;
+ }
+ struct PointerEvent;
++struct KeyboardEvent;
+ struct wl_surface;
+ 
+ class Bar {
+@@ -89,6 +90,7 @@ public:
+   // already been mutated in place and only a repaint is needed.
+   void requestRedraw();
+   bool onPointerEvent(const PointerEvent& event);
++  bool onKeyboardEvent(const KeyboardEvent& event);
+   [[nodiscard]] bool isRunning() const noexcept;
+   [[nodiscard]] std::optional<LayerPopupParentContext> popupParentContextForSurface(wl_surface* surface) const noexcept;
+   [[nodiscard]] std::optional<LayerPopupParentContext> preferredPopupParentContext(wl_output* output) const noexcept;
+diff --git a/src/shell/bar/widgets/active_window_widget.cpp b/src/shell/bar/widgets/active_window_widget.cpp
+index 6d6c2dd..755dd01 100644
+--- a/src/shell/bar/widgets/active_window_widget.cpp
++++ b/src/shell/bar/widgets/active_window_widget.cpp
+@@ -181,6 +181,14 @@ void ActiveWindowWidget::syncState(Renderer& renderer) {
+     if (title.empty()) {
+       title = appId;
+     }
++    // Keep the terminal's app identity visible when a shell/TUI sets its title.
++    if (appId == "foot" || appId == "footclient") {
++      const auto entry = app_identity::findDesktopEntry(appId, desktopEntries());
++      const std::string appName = entry.has_value() ? entry->name : "Terminal";
++      if (title != appName && !title.starts_with(appName + " — ")) {
++        title = appName + " — " + title;
++      }
++    }
+   }
+ 
+   const bool showWidget = !emptyState || m_showEmptyLabel;
+diff --git a/src/shell/bar/widgets/plugin_widget.cpp b/src/shell/bar/widgets/plugin_widget.cpp
+index 1a0fa67..34f1593 100644
+--- a/src/shell/bar/widgets/plugin_widget.cpp
++++ b/src/shell/bar/widgets/plugin_widget.cpp
+@@ -55,11 +55,11 @@ namespace {
+     return value != nullptr ? *value : def;
+   }
+ 
+-  // The bar surface never takes keyboard focus and clips to bar thickness, so
+-  // keyboard/scroll controls cannot work in a bar tree. Removes them in place,
++  // The bar supports compact text inputs. Dropdown/scroll controls exceed
++  // the bar thickness. Remove them in place,
+   // recording each dropped type; returns false when `node` itself is dropped.
+   bool filterUnsupportedBarControls(ui::UiTreeNode& node, std::vector<std::string>& dropped) {
+-    const bool unsupported = node.type == "input" || node.type == "select" || node.type == "scroll";
++    const bool unsupported = node.type == "select" || node.type == "scroll";
+     if (unsupported) {
+       if (std::ranges::find(dropped, node.type) == dropped.end()) {
+         dropped.push_back(node.type);
+diff --git a/src/shell/switcher/window_switcher.cpp b/src/shell/switcher/window_switcher.cpp
+index 5ff6e51..d0bb0f1 100644
+--- a/src/shell/switcher/window_switcher.cpp
++++ b/src/shell/switcher/window_switcher.cpp
+@@ -58,7 +58,7 @@ namespace {
+ 
+   [[nodiscard]] WindowSwitcherStyleLayout computeSwitcherLayout(
+       float screenWidth, float screenHeight, float scale, std::size_t windowCount, std::size_t selectedIndex,
+-      const ShellConfig::WindowSwitcherConfig& config
++      const ShellConfig::WindowSwitcherConfig& config, bool iconOnly
+   ) {
+     const WindowSwitcherStyleContext context{
+         .screenWidth = screenWidth,
+@@ -68,6 +68,7 @@ namespace {
+         .selectedIndex = selectedIndex,
+         .showCaption = config.showCaption,
+         .showCount = config.showCount,
++        .iconOnly = iconOnly,
+     };
+     if (config.style == ShellConfig::WindowSwitcherStyle::Compact) {
+       return computeWindowSwitcherCompactLayout(context);
+@@ -1073,7 +1074,8 @@ void WindowSwitcher::syncSelection(bool animate) {
+   if (m_instance->surface->width() > 0 && m_instance->surface->height() > 0) {
+     m_instance->styleLayout = computeSwitcherLayout(
+         static_cast<float>(m_instance->surface->width()), static_cast<float>(m_instance->surface->height()),
+-        m_instance->uiLayoutScale, m_windows.size(), m_selectedIndex, switcherConfig
++        m_instance->uiLayoutScale, m_windows.size(), m_selectedIndex, switcherConfig,
++        !m_thumbnailCapture || !m_thumbnailCapture->available() || std::ranges::none_of(m_windows, [](const auto& entry) { return entry.captureHandle != 0; })
+     );
+     positionPanel(
+         *m_instance, static_cast<float>(m_instance->surface->width()), static_cast<float>(m_instance->surface->height())
+@@ -1103,7 +1105,7 @@ void WindowSwitcher::syncSelection(bool animate) {
+     if (target.visible) {
+       tile->bind(
+           renderer, m_windows[windowIndex], target.depth, target.showCaption, target.wideCaption, target.iconPlacement,
+-          target.closePlacement
++          target.closePlacement, target.iconOnly
+       );
+       tile->setCardSize(target.width, target.height);
+       tile->setZIndex(target.zIndex);
+@@ -1598,7 +1600,7 @@ void WindowSwitcher::prepareFrame(Instance& instance, bool /*needsUpdate*/, bool
+       m_config != nullptr ? m_config->config().shell.windowSwitcher : ShellConfig::WindowSwitcherConfig{};
+   const auto layout = computeSwitcherLayout(
+       static_cast<float>(width), static_cast<float>(height), instance.uiLayoutScale, m_windows.size(), m_selectedIndex,
+-      switcherConfig
++      switcherConfig, !m_thumbnailCapture || !m_thumbnailCapture->available() || std::ranges::none_of(m_windows, [](const auto& entry) { return entry.captureHandle != 0; })
+   );
+   const bool needsSceneBuild = instance.sceneRoot == nullptr
+       || static_cast<std::uint32_t>(std::round(instance.sceneRoot->width())) != width
+diff --git a/src/shell/switcher/window_switcher_compact_style.cpp b/src/shell/switcher/window_switcher_compact_style.cpp
+index b9175bf..96db926 100644
+--- a/src/shell/switcher/window_switcher_compact_style.cpp
++++ b/src/shell/switcher/window_switcher_compact_style.cpp
+@@ -30,23 +30,25 @@ WindowSwitcherStyleLayout computeWindowSwitcherCompactLayout(const WindowSwitche
+   const float countHeight = context.showCount ? Style::controlHeightSm * context.scale : 0.0F;
+   const float countWidth = context.showCount ? Style::controlHeightLg * context.scale * 2.0F : 0.0F;
+   const float sectionGap = context.showCount ? Style::spaceMd * context.scale : 0.0F;
+-  const float captionHeight = context.showCaption ? Style::windowSwitcherCaptionHeight * context.scale : 0.0F;
++  const float captionHeight = context.showCaption ? (context.iconOnly ? 44.0F : Style::windowSwitcherCaptionHeight) * context.scale : 0.0F;
+   const float captionGap = context.showCaption ? Style::spaceMd * context.scale : 0.0F;
+   const float availableWidth = std::max(kMinimumLayoutExtent, context.screenWidth - outerMargin * 2.0F);
+   const float gapsWidth = cardGap * static_cast<float>(layout.visibleCards - 1);
++  const float preferredCardWidth = context.iconOnly ? 112.0F : Style::windowSwitcherCompactCardWidth;
++  const auto frameHeight = [&](float width) { return context.iconOnly ? width : previewFrameHeight(width, context.scale); };
+   const float desiredCardsWidth =
+-      Style::windowSwitcherCompactCardWidth * context.scale * static_cast<float>(layout.visibleCards);
++      preferredCardWidth * context.scale * static_cast<float>(layout.visibleCards);
+   const float widthScale = std::min(
+       1.0F, std::max(kMinimumLayoutExtent, availableWidth - panelPadding * 2.0F - gapsWidth) / desiredCardsWidth
+   );
+-  float cardWidth = Style::windowSwitcherCompactCardWidth * context.scale * widthScale;
+-  float cardHeight = previewFrameHeight(cardWidth, context.scale) + captionGap + captionHeight;
++  float cardWidth = preferredCardWidth * context.scale * widthScale;
++  float cardHeight = frameHeight(cardWidth) + captionGap + captionHeight;
+   const float maxPanelHeight = std::max(kMinimumLayoutExtent, context.screenHeight - outerMargin * 2.0F);
+   const float fixedHeight = panelPadding * 2.0F + countHeight + sectionGap;
+   if (fixedHeight + cardHeight > maxPanelHeight) {
+     const float heightScale = std::max(kMinimumLayoutExtent, maxPanelHeight - fixedHeight) / cardHeight;
+     cardWidth *= std::min(1.0F, heightScale);
+-    cardHeight = previewFrameHeight(cardWidth, context.scale) + captionGap + captionHeight;
++    cardHeight = frameHeight(cardWidth) + captionGap + captionHeight;
+   }
+ 
+   layout.stripWidth = cardWidth * static_cast<float>(layout.visibleCards) + gapsWidth;
+@@ -77,6 +79,7 @@ WindowSwitcherStyleLayout computeWindowSwitcherCompactLayout(const WindowSwitche
+     target.visible = true;
+     target.showCaption = context.showCaption;
+     target.wideCaption = true;
++    target.iconOnly = context.iconOnly;
+     target.depth = distance == 0 ? WindowSwitcherTileDepth::Selected
+                                  : (distance == 1 ? WindowSwitcherTileDepth::Near : WindowSwitcherTileDepth::Far);
+     target.x = static_cast<float>(slot) * (cardWidth + cardGap);
+diff --git a/src/shell/switcher/window_switcher_style.cpp b/src/shell/switcher/window_switcher_style.cpp
+index bf680d3..6000461 100644
+--- a/src/shell/switcher/window_switcher_style.cpp
++++ b/src/shell/switcher/window_switcher_style.cpp
+@@ -35,6 +35,7 @@ bool WindowSwitcherStyleLayout::sameGeometryAs(const WindowSwitcherStyleLayout&
+         || card.iconPlacement != otherCard.iconPlacement
+         || card.closePlacement != otherCard.closePlacement
+         || card.depth != otherCard.depth
++        || card.iconOnly != otherCard.iconOnly
+         || !closeEnough(card.x, otherCard.x)
+         || !closeEnough(card.y, otherCard.y)
+         || !closeEnough(card.width, otherCard.width)
+diff --git a/src/shell/switcher/window_switcher_style.h b/src/shell/switcher/window_switcher_style.h
+index 06b488b..0921c24 100644
+--- a/src/shell/switcher/window_switcher_style.h
++++ b/src/shell/switcher/window_switcher_style.h
+@@ -23,12 +23,14 @@ struct WindowSwitcherStyleContext {
+   std::size_t selectedIndex = 0;
+   bool showCaption = true;
+   bool showCount = true;
++  bool iconOnly = false;
+ };
+ 
+ struct WindowSwitcherCardTarget {
+   bool visible = false;
+   bool showCaption = false;
+   bool wideCaption = false;
++  bool iconOnly = false;
+   WindowSwitcherHorizontalPlacement iconPlacement = WindowSwitcherHorizontalPlacement::Left;
+   WindowSwitcherHorizontalPlacement closePlacement = WindowSwitcherHorizontalPlacement::Right;
+   WindowSwitcherTileDepth depth = WindowSwitcherTileDepth::Far;
+diff --git a/src/shell/switcher/window_switcher_tile.cpp b/src/shell/switcher/window_switcher_tile.cpp
+index 35797ec..da76b58 100644
+--- a/src/shell/switcher/window_switcher_tile.cpp
++++ b/src/shell/switcher/window_switcher_tile.cpp
+@@ -210,17 +210,20 @@ void WindowSwitcherTile::setShowAppIcon(bool show) {
+ 
+ void WindowSwitcherTile::bind(
+     Renderer& renderer, const WindowSwitcherEntry& entry, WindowSwitcherTileDepth depth, bool showCaption,
+-    bool wideCaption, WindowSwitcherHorizontalPlacement iconPlacement, WindowSwitcherHorizontalPlacement closePlacement
++    bool wideCaption, WindowSwitcherHorizontalPlacement iconPlacement, WindowSwitcherHorizontalPlacement closePlacement,
++    bool iconOnly
+ ) {
+   m_hasEntry = true;
+   m_depth = depth;
+   m_selected = depth == WindowSwitcherTileDepth::Selected;
+   m_captionVisible = showCaption;
+   m_wideCaption = wideCaption;
++  m_iconOnly = iconOnly;
+   m_iconPlacement = iconPlacement;
+   m_closePlacement = closePlacement;
+-  m_title->setText(entry.title.empty() ? entry.appLabel : entry.title);
+-  m_subtitle->setText(entry.appLabel.empty() ? entry.appId : entry.appLabel);
++  m_title->setText(m_iconOnly ? entry.appLabel : (entry.title.empty() ? entry.appLabel : entry.title));
++  m_subtitle->setVisible(!m_iconOnly || (!entry.title.empty() && entry.title != entry.appLabel));
++  m_subtitle->setText(m_iconOnly ? entry.title : (entry.appLabel.empty() ? entry.appId : entry.appLabel));
+ 
+   if (entry.iconPath != m_iconPath) {
+     m_iconPath = entry.iconPath;
+@@ -294,13 +297,23 @@ void WindowSwitcherTile::applyVisualState() {
+     );
+     m_previewHost->setFill(colorSpecFromRole(ColorRole::SurfaceVariant));
+   }
++  if (m_iconOnly) {
++    const auto fill = scaleAlpha(colorSpecFromRole(ColorRole::Hover), m_selected ? 1.0F : (m_pointerHovered ? 0.5F : 0.0F));
++    m_frame->setFill(fill);
++    m_frame->setBorder(colorSpecFromRole(ColorRole::Primary), m_selected ? 1.0F : 0.0F);
++    m_previewHost->setFill(fill);
++    m_captionBadge->setBorder(colorSpecFromRole(ColorRole::Outline), 0.0F);
++  }
+   if (m_toneOverlay != nullptr) {
++    m_toneOverlay->setVisible(!m_iconOnly);
+     const float tone = m_depth == WindowSwitcherTileDepth::Far
+         ? kFarToneAlpha
+         : (m_depth == WindowSwitcherTileDepth::Near ? kNearToneAlpha : 0.0F);
+     m_toneOverlay->setFill(scaleAlpha(colorSpecFromRole(ColorRole::Shadow), tone));
+   }
+   if (m_captionBadge != nullptr) {
++    m_captionBadge->setFill(scaleAlpha(colorSpecFromRole(ColorRole::Surface), m_iconOnly ? 0.0F : 1.0F));
++    m_captionBadge->setBorder(scaleAlpha(colorSpecFromRole(ColorRole::Outline), Style::disabledOutlineAlpha), m_iconOnly ? 0.0F : Style::borderWidth);
+     m_captionBadge->setVisible(m_captionVisible && m_showCaption);
+   }
+   if (m_shadow != nullptr) {
+@@ -315,7 +328,7 @@ void WindowSwitcherTile::layoutContent(Renderer& renderer) {
+   const float outerPad = Style::spaceXs * m_contentScale;
+   const float innerW = std::max(0.0F, m_cardWidth - outerPad * 2.0F);
+   const float captionH = m_captionVisible && m_showCaption
+-      ? std::min(Style::windowSwitcherCaptionHeight * m_contentScale, m_cardHeight)
++      ? std::min((m_iconOnly ? 44.0F : Style::windowSwitcherCaptionHeight) * m_contentScale, m_cardHeight)
+       : 0.0F;
+   const float captionGap = captionH > 0.0F ? Style::spaceMd * m_contentScale : 0.0F;
+   const float frameH = std::max(0.0F, m_cardHeight - captionGap - captionH);
+@@ -335,7 +348,7 @@ void WindowSwitcherTile::layoutContent(Renderer& renderer) {
+   m_toneOverlay->setFrameSize(innerW, previewH);
+ 
+   const bool hasThumbnail = m_thumbnail->visible();
+-  const float iconScale = hasThumbnail ? Style::windowSwitcherPreviewIconScale : Style::windowSwitcherFallbackIconScale;
++  const float iconScale = m_iconOnly ? 0.75F : (hasThumbnail ? Style::windowSwitcherPreviewIconScale : Style::windowSwitcherFallbackIconScale);
+   const float iconSize = std::min(innerW, previewH) * iconScale;
+   const int targetSize = std::max(
+       static_cast<int>(std::round(Style::baseGlyphSize * m_contentScale)), static_cast<int>(std::round(iconSize))
+@@ -374,7 +387,7 @@ void WindowSwitcherTile::layoutContent(Renderer& renderer) {
+   m_close->setSize(closeSize, closeSize);
+ 
+   if (m_captionBadge != nullptr && m_captionVisible && m_showCaption) {
+-    const float captionPad = Style::spaceLg * m_contentScale;
++    const float captionPad = (m_iconOnly ? Style::spaceSm : Style::spaceLg) * m_contentScale;
+     const float captionMargin = m_wideCaption ? 0.0F : Style::spaceLg * m_contentScale;
+     const float maxCaptionW = std::max(0.0F, m_cardWidth - captionMargin * 2.0F);
+     m_title->setMaxWidth(std::max(0.0F, maxCaptionW - captionPad * 2.0F));
+diff --git a/src/shell/switcher/window_switcher_tile.h b/src/shell/switcher/window_switcher_tile.h
+index 0ca927b..7559048 100644
+--- a/src/shell/switcher/window_switcher_tile.h
++++ b/src/shell/switcher/window_switcher_tile.h
+@@ -51,7 +51,7 @@ public:
+   void bind(
+       Renderer& renderer, const WindowSwitcherEntry& entry, WindowSwitcherTileDepth depth, bool showCaption,
+       bool wideCaption, WindowSwitcherHorizontalPlacement iconPlacement,
+-      WindowSwitcherHorizontalPlacement closePlacement
++      WindowSwitcherHorizontalPlacement closePlacement, bool iconOnly = false
+   );
+ 
+ private:
+@@ -87,6 +87,7 @@ protected:
+   bool m_showCaption = true;
+   bool m_captionVisible = false;
+   bool m_wideCaption = false;
++  bool m_iconOnly = false;
+   bool m_showAppIcon = true;
+   WindowSwitcherHorizontalPlacement m_iconPlacement = WindowSwitcherHorizontalPlacement::Left;
+   WindowSwitcherHorizontalPlacement m_closePlacement = WindowSwitcherHorizontalPlacement::Right;
