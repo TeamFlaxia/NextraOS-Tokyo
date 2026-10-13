@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+"""Fit a single portrait Android desktop to the current niri output at launch."""
+import argparse
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import time
+import tomllib
+
+HOME = Path.home()
+
+def run(*args):
+    return subprocess.check_output(args, text=True, timeout=20).strip()
+
+def fit_size(output, shell_config, niri_config, layers):
+    match = re.search(r'^\s*gaps\s+(\d+(?:\.\d+)?)', niri_config, re.M)
+    gap = float(match[1]) if match else 16
+    reserved = 0
+    for name, bar in shell_config.get('bar', {}).items():
+        if bar.get('position', 'top') in ('top', 'bottom') and any(
+            layer['namespace'] == f'noctalia-bar-{name}' and layer['output'] == output['name']
+            for layer in layers
+        ):
+            reserved += float(bar.get('thickness', 48)) + float(bar.get('margin_edge', 0))
+    height = round(output['logical']['height'] - reserved - 2 * gap)
+    if height < 240:
+        raise RuntimeError('Waydroidを配置する高さが足りません')
+    return round(height * 9 / 21), height
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--print-size', action='store_true')
+    args = parser.parse_args()
+    output = json.loads(run('niri', 'msg', '--json', 'focused-output'))
+    config = tomllib.loads((HOME / '.config/noctalia/config.toml').read_text())
+    layers = json.loads(run('niri', 'msg', '--json', 'layers'))
+    width, height = fit_size(output, config, (HOME / '.config/niri/config.kdl').read_text(), layers)
+    if args.print_size:
+        print(f'{width}x{height}')
+        return
+    lock = open(Path(os.environ['XDG_RUNTIME_DIR']) / 'waydroid-window.lock', 'w')
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return
+    if not re.search(r'Session:\s*RUNNING', run('waydroid', 'status')):
+        log = HOME / '.local/state/waydroid-desktop/session-start.log'
+        log.parent.mkdir(parents=True, exist_ok=True)
+        with log.open('a') as stream:
+            subprocess.Popen(['waydroid', 'session', 'start'], stdout=stream, stderr=stream, start_new_session=True)
+        for _ in range(60):
+            if re.search(r'Session:\s*RUNNING', run('waydroid', 'status')):
+                break
+            time.sleep(0.5)
+        else:
+            raise RuntimeError('Waydroidセッションを開始できませんでした')
+    changed = False
+    for prop, value in [('width', str(width)), ('height', str(height)),
+                        ('multi_windows', 'false'), ('no_background_subsurface', 'false')]:
+        key = 'persist.waydroid.' + prop
+        if run('waydroid', 'prop', 'get', key) != value:
+            run('waydroid', 'prop', 'set', key, value)
+            changed = True
+    if changed:
+        run('waydroid', 'session', 'stop')
+    subprocess.run(['waydroid', 'show-full-ui'], check=True)
+
+if __name__ == '__main__':
+    main()

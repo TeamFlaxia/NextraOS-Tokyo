@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+"""Apply single-desktop settings, optionally repairing the x86_64 MAINLINE vendor.
+
+This is an explicit administrative operation, never run by the profile installer.
+"""
+import argparse
+import configparser
+from datetime import datetime, timezone
+import hashlib
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import zipfile
+
+SHA256 = 'cba35433ffca73ed349e096b1daec495b3204e01c0e541c4203671e6d648e874'
+VENDOR_BYTES = 561504256
+OTA = 'https://raw.githubusercontent.com/waydroid/OTA/d3b9bcfdf60cf63c7f099d99f39f28de5c2149a3/vendor/waydroid_x86_64/MAINLINE.json'
+SERVICE = 'waydroid-container.service'
+PROFILE = Path(__file__).resolve().parent.parent / 'integrations/waydroid/properties.ini'
+
+
+def verify_archive(path):
+    with path.open('rb') as stream:
+        digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+    if digest != SHA256:
+        raise ValueError('Vendor ZIP SHA256 does not match the pinned official OTA')
+    with zipfile.ZipFile(path) as archive:
+        entry = archive.getinfo('vendor.img')
+        if entry.file_size != VENDOR_BYTES:
+            raise ValueError('Unexpected vendor.img size')
+
+
+def read_config(work):
+    cfg = configparser.ConfigParser()
+    with (work / 'waydroid.cfg').open() as stream:
+        cfg.read_file(stream)
+    if cfg['waydroid']['arch'] != 'x86_64' or cfg['waydroid']['vendor_type'] != 'MAINLINE':
+        raise ValueError('This profile supports only x86_64 MAINLINE installations')
+    return cfg
+
+
+def command(*args):
+    subprocess.run(args, check=True)
+
+
+def apply(work, candidate=None, run=command, active=None):
+    cfg = read_config(work)
+    cfg_path = work / 'waydroid.cfg'
+    vendor = Path(cfg['waydroid']['images_path']) / 'vendor.img'
+    if candidate is not None and not vendor.is_file():
+        raise ValueError('Installed vendor.img is missing')
+    prefs = configparser.ConfigParser()
+    prefs.read(PROFILE)
+    if not cfg.has_section('properties'):
+        cfg.add_section('properties')
+    cfg['properties'].update(prefs['properties'])
+    # Let upstream select a supported DRM device and Mesa/CPU renderer.
+    for key in ('ro.hardware.egl', 'ro.hardware.gralloc', 'ro.hardware.vulkan',
+                'gralloc.gbm.device', 'persist.waydroid.width', 'persist.waydroid.height'):
+        cfg['properties'].pop(key, None)
+    if candidate is not None:
+        cfg['waydroid']['vendor_datetime'] = '1777409843'
+        cfg['waydroid']['vendor_ota'] = OTA
+    if active is None:
+        active = subprocess.run(['systemctl', 'is-active', '--quiet', SERVICE]).returncode == 0
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
+    backup = work / 'backups' / ('single-desktop-' + stamp)
+    backup.mkdir(parents=True, mode=0o700)
+    shutil.copy2(cfg_path, backup / 'waydroid.cfg')
+    vendor_saved = False
+    mutated = False
+    replacement = vendor.with_name('vendor.img.nextraos-new')
+    try:
+        run('systemctl', 'stop', SERVICE)
+        if candidate is not None:
+            shutil.copy2(vendor, backup / 'vendor.img')
+            vendor_saved = True
+            shutil.copyfile(candidate, replacement)
+            replacement.chmod(0o644)
+            os.replace(replacement, vendor)
+            mutated = True
+        pending = work / 'waydroid.cfg.nextraos-new'
+        with pending.open('w') as stream:
+            cfg.write(stream)
+        pending.chmod(cfg_path.stat().st_mode & 0o777)
+        os.replace(pending, cfg_path)
+        mutated = True
+        run('waydroid', 'upgrade', '--offline')
+        if active:
+            run('systemctl', 'start', SERVICE)
+    except Exception:
+        # Stop even if the failure occurred during container startup.
+        run('systemctl', 'stop', SERVICE)
+        if mutated:
+            if vendor_saved:
+                shutil.copy2(backup / 'vendor.img', vendor)
+            shutil.copy2(backup / 'waydroid.cfg', cfg_path)
+            run('waydroid', 'upgrade', '--offline')
+        if active:
+            run('systemctl', 'start', SERVICE)
+        raise
+    finally:
+        replacement.unlink(missing_ok=True)
+        (work / 'waydroid.cfg.nextraos-new').unlink(missing_ok=True)
+    print(f'Applied single-desktop profile. Backup: {backup}')
+    return backup
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--archive', type=Path, help='optional official 20260428 vendor ZIP')
+    parser.add_argument('--check', action='store_true', help='read-only config/archive validation')
+    args = parser.parse_args()
+    work = Path('/var/lib/waydroid')
+    read_config(work)
+    if args.check:
+        if args.archive:
+            verify_archive(args.archive)
+        print('Configuration/archive checks passed; no files or services changed.')
+        return
+    if os.geteuid() != 0:
+        parser.error('Run with sudo to apply; --check is read-only')
+    if args.archive:
+        # Copy into root-owned temporary storage before verifying and extracting,
+        # so the unprivileged source cannot change between validation and use.
+        with tempfile.TemporaryDirectory(prefix='nextraos-waydroid-', dir='/var/tmp') as tmp:
+            private = Path(tmp) / 'vendor.zip'
+            shutil.copyfile(args.archive, private)
+            verify_archive(private)
+            candidate = Path(tmp) / 'vendor.img'
+            with zipfile.ZipFile(private) as archive:
+                with archive.open('vendor.img') as source, candidate.open('wb') as target:
+                    shutil.copyfileobj(source, target)
+            apply(work, candidate)
+    else:
+        apply(work)
+
+
+if __name__ == '__main__':
+    main()

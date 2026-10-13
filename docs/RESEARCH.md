@@ -972,3 +972,12 @@ Never freeze assumptions indefinitely.
   session synchronization affects only the current user's graphical services.
   There are no runtime downloads, privileged containers, VM operations,
   filesystem/device sharing rules or automatic package installs in the import.
+
+### Optional Waydroid export (2026-10-13)
+
+Waydroid 1.6.3 single-desktop preferences and launch-time Niri/Noctalia sizing
+are exported under `integrations/waydroid`. The vendor rollback is opt-in,
+following [upstream issue 2436](https://github.com/waydroid/waydroid/issues/2436)
+and pinned official OTA metadata linked in the integration README. Runtime
+properties need session restart per the [official property documentation](https://docs.waydro.id/usage/waydroid-prop-options).
+No Android data/images or Windows VM configuration are redistributed.

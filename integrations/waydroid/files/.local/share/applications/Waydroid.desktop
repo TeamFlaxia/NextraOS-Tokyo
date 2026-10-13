@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Waydroid
+GenericName=Android Container
+Exec="@HOME@/.local/bin/waydroid-window"
+Comment=Android desktop in one automatically sized portrait window
+Icon=waydroid
+Categories=Utility;
+Actions=stop;
+[Desktop Action stop]
+Name=Stop Waydroid
+Exec=waydroid session stop

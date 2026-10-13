@@ -1,0 +1,16 @@
+#!/usr/bin/python3
+"""Disable Android freeform windows in an already running Waydroid session."""
+import sys
+from types import SimpleNamespace
+sys.path.insert(0, '/usr/lib/waydroid')
+from tools.interfaces import IPlatform
+from tools.helpers.ipc import DBusContainerService
+
+if __name__ == '__main__':
+    DBusContainerService().Unfreeze()
+    platform = IPlatform.get_service(SimpleNamespace(config='/var/lib/waydroid/waydroid.cfg'))
+    for key in ('enable_freeform_support', 'force_resizable_activities'):
+        platform.settingsPutInt(2, key, 0)
+        if platform.settingsGetString(2, key) != '0':
+            raise RuntimeError(f'Android setting was not applied: {key}')
+    print('Android freeform windows disabled. Restart the Waydroid session to apply.')

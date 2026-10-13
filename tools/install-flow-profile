@@ -9,6 +9,7 @@ import tomllib
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--home', type=Path, default=Path.home(), help='destination user home')
+parser.add_argument('--with-waydroid', action='store_true', help='also copy optional Android launchers; no runtime changes')
 parser.add_argument('--dry-run', action='store_true', help='show paths without changing files')
 args = parser.parse_args()
 target_home = args.home.expanduser().absolute()
@@ -16,9 +17,11 @@ target_home = args.home.expanduser().absolute()
 if any(char in str(target_home) for char in ('"', '\\', '\n', '\r')):
     parser.error('Home paths containing quotes, backslashes or newlines are unsupported')
 source = Path(__file__).resolve().parent.parent / 'desktop/flow/files'
-entries = sorted(path for path in source.rglob('*') if path.is_file())
-for path in entries:
-    relative = path.relative_to(source)
+sources = [source]
+if args.with_waydroid:
+    sources.append(Path(__file__).resolve().parent.parent / 'integrations/waydroid/files')
+entries = sorted((path.relative_to(root), path) for root in sources for path in root.rglob('*') if path.is_file())
+for relative, path in entries:
     destination = target_home / relative
     # Never follow a pre-existing directory symlink outside this home.
     if not destination.parent.resolve().is_relative_to(target_home.resolve()):
@@ -30,23 +33,22 @@ for path in entries:
     elif path.suffix == '.json':
         json.loads(path.read_text())
 if args.dry_run:
-    for path in entries:
-        print(path.relative_to(source))
+    for relative, path in entries:
+        print(relative)
     raise SystemExit(0)
 stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
 backup = target_home / '.local/state/nextraos-flow/backups' / stamp
 if not backup.parent.resolve().is_relative_to(target_home.resolve()):
     parser.error('Backup directory escapes the selected home')
 # Back up all destinations before replacing any file.
-for path in entries:
-    relative = path.relative_to(source)
+for relative, path in entries:
     destination = target_home / relative
     if destination.exists() or destination.is_symlink():
         saved = backup / relative
         saved.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(destination, saved, follow_symlinks=False)
-for path in entries:
-    destination = target_home / path.relative_to(source)
+for relative, path in entries:
+    destination = target_home / relative
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.is_symlink():
         destination.unlink()

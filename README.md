@@ -60,3 +60,6 @@ It samples at 5, 30, and 60 minutes after boot and writes a metadata sidecar. Re
 - [Research](docs/RESEARCH.md)
 - [Security](docs/SECURITY.md)
 - [Memory benchmark](docs/MEMORY-BENCHMARK.md)
+
+Optional Android integration: [Waydroid single-desktop profile](integrations/waydroid/README.md),
+with a portrait 21:9 launcher and explicit vendor-repair tooling.

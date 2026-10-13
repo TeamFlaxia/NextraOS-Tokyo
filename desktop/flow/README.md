@@ -107,8 +107,10 @@ This import contains desktop preferences and shell source changes only. It
 contains no QEMU/libvirt/Windows/macOS VM definitions, VM disks, ISO images,
 VM launchers, WinApps configuration, credentials, notification/usage history,
 browser profiles or runtime caches. The small Niri rule for existing Android
-surfaces is a tiling preference; Waydroid images, vendor repairs, initialization
-and its launcher are not included in this profile.
+surfaces is a tiling preference. The [optional Waydroid integration](../../integrations/waydroid/README.md)
+adds a portrait launcher and explicit configuration/vendor repair tools; use
+`--with-waydroid` to copy its user files. Android images and initialization are
+not included.
 
 On the original host, the bottom search input (including IME), launcher,
 window titles and compact switcher were exercised with the patched binary.
